@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://blogbooster.kr
+
+# Sitemaps
+Sitemap: https://blogbooster.kr/sitemap.xml

@@ -1,0 +1,133 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==================== Helper Functions ====================
+
+    // 인증된 사용자인지 확인
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 본인 데이터인지 확인 (RLS 핵심)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 유효한 이메일인지 확인
+    function hasValidEmail() {
+      return isAuthenticated() && request.auth.token.email != null;
+    }
+
+    // 타임스탬프 검증
+    function isValidTimestamp(field) {
+      return request.resource.data[field] is timestamp;
+    }
+
+    // 결제 금액 검증 (0 이상, 1000만원 이하)
+    function isValidAmount(amount) {
+      return amount >= 0 && amount <= 10000000;
+    }
+
+    // 유효한 구독 플랜인지 확인
+    function isValidPlan(plan) {
+      return plan in ['FREE', 'BASIC', 'PRO', 'ENTERPRISE'];
+    }
+
+    // ==================== Users Collection ====================
+
+    match /users/{userId} {
+      // 본인만 읽기/쓰기 가능
+      allow read: if isOwner(userId);
+
+      // 본인만 생성 가능 (최초 가입시)
+      allow create: if isOwner(userId) &&
+                       request.resource.data.keys().hasAll(['uid', 'email', 'createdAt']);
+
+      // 본인만 업데이트 가능 (uid, email 수정 불가)
+      allow update: if isOwner(userId) &&
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'email', 'createdAt']);
+
+      // 삭제 불가 (탈퇴는 별도 프로세스)
+      allow delete: if false;
+
+      // ==================== User Subcollections ====================
+
+      // 비즈니스 정보 - 본인만 접근
+      match /businessInfo/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // 프리셋 - 본인만 접근
+      match /presets/{presetId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         request.resource.data.keys().hasAll(['name', 'category']);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // 설정 (API 키 등) - 본인만 접근
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // 구독 정보 - 읽기만 허용, 쓰기는 서버에서만
+      match /subscription/{subId} {
+        // 본인만 읽기 가능
+        allow read: if isOwner(userId);
+
+        // 클라이언트에서 직접 쓰기 금지 (서버에서만 처리)
+        // 개발 환경에서는 허용 (프로덕션에서는 false로 변경)
+        allow write: if isOwner(userId) &&
+                        request.resource.data.keys().hasAll(['currentPlan']) &&
+                        isValidPlan(request.resource.data.currentPlan);
+      }
+    }
+
+    // ==================== Payments Collection ====================
+
+    match /payments/{paymentId} {
+      // 본인 결제 내역만 읽기 가능
+      allow read: if isAuthenticated() &&
+                     resource.data.userId == request.auth.uid;
+
+      // 결제 생성 - 본인만 가능, 필수 필드 검증
+      allow create: if isAuthenticated() &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['id', 'oderId', 'userId', 'amount', 'status', 'plan']) &&
+                       isValidAmount(request.resource.data.amount) &&
+                       isValidPlan(request.resource.data.plan) &&
+                       request.resource.data.status == 'PENDING';
+
+      // 결제 업데이트 - 본인만 가능, 특정 필드만 수정 가능
+      allow update: if isAuthenticated() &&
+                       resource.data.userId == request.auth.uid &&
+                       // 핵심 필드는 수정 불가
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'oderId', 'userId', 'amount', 'plan']);
+
+      // 삭제 불가 (결제 기록 보존)
+      allow delete: if false;
+    }
+
+    // ==================== Admin Only Collections ====================
+
+    // 시스템 설정 - 접근 불가 (서버에서만)
+    match /system/{document=**} {
+      allow read, write: if false;
+    }
+
+    // 로그 - 접근 불가 (서버에서만)
+    match /logs/{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================== Default Deny ====================
+
+    // 정의되지 않은 모든 문서 접근 거부
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
