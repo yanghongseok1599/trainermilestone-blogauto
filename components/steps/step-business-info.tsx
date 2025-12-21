@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Building2, Target, Lightbulb, ArrowRight, ArrowLeft, Wand2, Search, Loader2, MapPin, Plus, X, Save, Download } from 'lucide-react';
+import { Building2, Target, Lightbulb, ArrowRight, ArrowLeft, Wand2, Search, Loader2, MapPin, Plus, X, Save, Download, ChevronDown, ChevronRight, Pencil, Check, Trash2 } from 'lucide-react';
 
 interface NaverPlaceResult {
   title: string;
@@ -29,8 +29,13 @@ interface SavedBusinessInfo {
   uniquePoint: string;
   attributes: Record<string, string>;
   customAttributes: string[];
+  attributeLabels?: Record<string, string>;
+  hiddenAttributes?: string[];
   savedAt: string;
 }
+
+// 운영시간/휴무일 그룹
+const OPERATING_HOURS_ATTRS = ['평일 운영', '주말 운영', '공휴일 운영', '휴무일'];
 
 const STORAGE_KEY = 'blogbooster_saved_business_info';
 
@@ -44,6 +49,8 @@ export function StepBusinessInfo() {
     uniquePoint,
     attributes,
     customAttributes,
+    attributeLabels,
+    hiddenAttributes,
     setCategory,
     setBusinessInfo,
     setAttribute,
@@ -51,6 +58,10 @@ export function StepBusinessInfo() {
     addCustomAttribute,
     removeCustomAttribute,
     setCustomAttributes,
+    setAttributeLabel,
+    hideAttribute,
+    setHiddenAttributes,
+    setAttributeLabels,
   } = useAppStore();
 
   const setCurrentStep = useAppStore((state) => state.setCurrentStep);
@@ -62,6 +73,12 @@ export function StepBusinessInfo() {
   const [newAttributeName, setNewAttributeName] = useState('');
   const [showAddAttribute, setShowAddAttribute] = useState(false);
   const [hasSavedInfo, setHasSavedInfo] = useState(false);
+
+  // 운영시간 섹션 열기/닫기
+  const [isOperatingHoursOpen, setIsOperatingHoursOpen] = useState(false);
+  // 라벨 편집 모드
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [tempLabel, setTempLabel] = useState('');
 
   // Load saved info on mount
   useEffect(() => {
@@ -85,6 +102,8 @@ export function StepBusinessInfo() {
       uniquePoint,
       attributes,
       customAttributes,
+      attributeLabels,
+      hiddenAttributes,
       savedAt: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(infoToSave));
@@ -111,6 +130,14 @@ export function StepBusinessInfo() {
       // Set custom attributes
       if (info.customAttributes) {
         setCustomAttributes(info.customAttributes);
+      }
+      // Set attribute labels
+      if (info.attributeLabels) {
+        setAttributeLabels(info.attributeLabels);
+      }
+      // Set hidden attributes
+      if (info.hiddenAttributes) {
+        setHiddenAttributes(info.hiddenAttributes);
       }
       toast.success('저장된 정보를 불러왔습니다');
     }
@@ -276,7 +303,109 @@ export function StepBusinessInfo() {
     toast.success(`"${newAttributeName}" 속성이 추가되었습니다`);
   };
 
-  const allAttributes = [...CATEGORY_ATTRIBUTES[category], ...customAttributes];
+  // 표시할 속성 필터링 (숨김 처리 제외)
+  const baseAttributes = CATEGORY_ATTRIBUTES[category].filter(
+    (attr) => !hiddenAttributes.includes(attr)
+  );
+  const visibleCustomAttributes = customAttributes.filter(
+    (attr) => !hiddenAttributes.includes(attr)
+  );
+
+  // 운영시간 그룹과 기타 속성 분리
+  const operatingHoursAttrs = baseAttributes.filter((attr) =>
+    OPERATING_HOURS_ATTRS.includes(attr)
+  );
+  const otherBaseAttrs = baseAttributes.filter(
+    (attr) => !OPERATING_HOURS_ATTRS.includes(attr)
+  );
+
+  // 라벨 가져오기 (커스텀 라벨이 있으면 사용, 없으면 기본)
+  const getLabel = (attr: string) => attributeLabels[attr] || attr;
+
+  // 라벨 편집 시작
+  const startEditLabel = (attr: string) => {
+    setEditingLabel(attr);
+    setTempLabel(getLabel(attr));
+  };
+
+  // 라벨 편집 완료
+  const finishEditLabel = () => {
+    if (editingLabel && tempLabel.trim()) {
+      setAttributeLabel(editingLabel, tempLabel.trim());
+      toast.success('항목명이 변경되었습니다');
+    }
+    setEditingLabel(null);
+    setTempLabel('');
+  };
+
+  // 속성 삭제 (숨김 처리)
+  const handleDeleteAttribute = (attr: string) => {
+    const isCustom = customAttributes.includes(attr);
+    if (isCustom) {
+      removeCustomAttribute(attr);
+    } else {
+      hideAttribute(attr);
+    }
+    toast.success(`"${getLabel(attr)}" 항목이 삭제되었습니다`);
+  };
+
+  // 속성 입력 필드 렌더링
+  const renderAttributeField = (attr: string) => {
+    const label = getLabel(attr);
+    const isEditing = editingLabel === attr;
+
+    return (
+      <div key={attr} className="space-y-1 relative group">
+        <div className="flex items-center justify-between min-h-[20px]">
+          {isEditing ? (
+            <div className="flex items-center gap-1 flex-1">
+              <Input
+                value={tempLabel}
+                onChange={(e) => setTempLabel(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && finishEditLabel()}
+                className="h-6 text-xs py-0 px-1 w-full"
+                autoFocus
+              />
+              <button
+                className="p-0.5 hover:bg-green-100 rounded"
+                onClick={finishEditLabel}
+              >
+                <Check className="w-3 h-3 text-green-600" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <label className="text-xs font-medium text-[#6b7280] truncate flex-1">
+                {label}
+              </label>
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  className="p-0.5 hover:bg-blue-100 rounded"
+                  onClick={() => startEditLabel(attr)}
+                  title="항목명 수정"
+                >
+                  <Pencil className="w-3 h-3 text-blue-500" />
+                </button>
+                <button
+                  className="p-0.5 hover:bg-red-100 rounded"
+                  onClick={() => handleDeleteAttribute(attr)}
+                  title="항목 삭제"
+                >
+                  <Trash2 className="w-3 h-3 text-red-500" />
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        <Input
+          placeholder={`${label} 입력`}
+          value={attributes[attr] || ''}
+          onChange={(e) => setAttribute(attr, e.target.value)}
+          className="h-10 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
+        />
+      </div>
+    );
+  };
 
   return (
     <Card className="border border-[#eeeeee] shadow-lg bg-white">
@@ -524,35 +653,44 @@ export function StepBusinessInfo() {
             </div>
           )}
 
+          {/* 기본 속성들 (운영시간 제외) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {allAttributes.map((attr) => {
-              const isCustom = customAttributes.includes(attr);
-              return (
-                <div key={attr} className="space-y-1 relative group">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-[#6b7280]">{attr}</label>
-                    {isCustom && (
-                      <button
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-red-100 rounded"
-                        onClick={() => {
-                          removeCustomAttribute(attr);
-                          toast.success(`"${attr}" 항목이 삭제되었습니다`);
-                        }}
-                      >
-                        <X className="w-3 h-3 text-red-500" />
-                      </button>
-                    )}
-                  </div>
-                  <Input
-                    placeholder={`${attr} 입력`}
-                    value={attributes[attr] || ''}
-                    onChange={(e) => setAttribute(attr, e.target.value)}
-                    className="h-10 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
-                  />
-                </div>
-              );
-            })}
+            {otherBaseAttrs.map(renderAttributeField)}
           </div>
+
+          {/* 운영시간/휴무일 - 열어보기 섹션 */}
+          {operatingHoursAttrs.length > 0 && (
+            <div className="border border-[#eeeeee] rounded-lg overflow-hidden">
+              <button
+                className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors"
+                onClick={() => setIsOperatingHoursOpen(!isOperatingHoursOpen)}
+              >
+                <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+                  운영시간 / 휴무일
+                  <span className="text-xs text-[#9ca3af]">
+                    ({operatingHoursAttrs.length}개 항목)
+                  </span>
+                </span>
+                {isOperatingHoursOpen ? (
+                  <ChevronDown className="w-4 h-4 text-[#6b7280]" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-[#6b7280]" />
+                )}
+              </button>
+              {isOperatingHoursOpen && (
+                <div className="p-3 bg-white grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {operatingHoursAttrs.map(renderAttributeField)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 커스텀 속성들 */}
+          {visibleCustomAttributes.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {visibleCustomAttributes.map(renderAttributeField)}
+            </div>
+          )}
 
           {/* Save Button under detailed info */}
           <div className="flex justify-end pt-2">

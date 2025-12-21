@@ -14,6 +14,8 @@ const initialState = {
   uniquePoint: '',
   attributes: {} as Record<string, string>,
   customAttributes: [] as string[],
+  attributeLabels: {} as Record<string, string>, // 라벨 수정용
+  hiddenAttributes: [] as string[], // 삭제(숨김) 처리된 기본 속성
   images: [] as ImageData[],
   imageAnalysisContext: '',
   generatedContent: '',
@@ -65,6 +67,22 @@ export const useAppStore = create<AppState>((set) => ({
     };
   }),
   setCustomAttributes: (attrs) => set({ customAttributes: attrs }),
+
+  // 라벨 수정 기능
+  setAttributeLabel: (key, label) => set((state) => ({
+    attributeLabels: { ...state.attributeLabels, [key]: label }
+  })),
+  // 기본 속성 숨김 기능
+  hideAttribute: (key) => set((state) => ({
+    hiddenAttributes: state.hiddenAttributes.includes(key)
+      ? state.hiddenAttributes
+      : [...state.hiddenAttributes, key]
+  })),
+  showAttribute: (key) => set((state) => ({
+    hiddenAttributes: state.hiddenAttributes.filter((attr) => attr !== key)
+  })),
+  setHiddenAttributes: (attrs) => set({ hiddenAttributes: attrs }),
+  setAttributeLabels: (labels) => set({ attributeLabels: labels }),
 
   addImage: (image) => set((state) => ({
     images: [...state.images, image]

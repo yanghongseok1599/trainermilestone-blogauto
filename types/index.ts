@@ -101,6 +101,15 @@ export interface AppState {
   removeCustomAttribute: (key: string) => void;
   setCustomAttributes: (attrs: string[]) => void;
 
+  // 라벨 수정 & 속성 숨김
+  attributeLabels: Record<string, string>;
+  hiddenAttributes: string[];
+  setAttributeLabel: (key: string, label: string) => void;
+  hideAttribute: (key: string) => void;
+  showAttribute: (key: string) => void;
+  setHiddenAttributes: (attrs: string[]) => void;
+  setAttributeLabels: (labels: Record<string, string>) => void;
+
   // 이미지
   images: ImageData[];
   imageAnalysisContext: string;
