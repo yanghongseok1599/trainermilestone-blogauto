@@ -37,6 +37,17 @@ interface SavedBusinessInfo {
 // 운영시간/휴무일 그룹
 const OPERATING_HOURS_ATTRS = ['평일 운영', '주말 운영', '공휴일 운영', '휴무일'];
 
+// 가격 관련 속성 (별도 섹션으로 분리)
+const PRICE_ATTR = '가격';
+
+// 기본 가격 항목
+const DEFAULT_PRICE_ITEMS = [
+  { id: '1개월', label: '1개월' },
+  { id: '3개월', label: '3개월' },
+  { id: '6개월', label: '6개월' },
+  { id: '12개월', label: '12개월' },
+];
+
 const STORAGE_KEY = 'blogbooster_saved_business_info';
 
 export function StepBusinessInfo() {
@@ -76,6 +87,11 @@ export function StepBusinessInfo() {
 
   // 운영시간 섹션 열기/닫기
   const [isOperatingHoursOpen, setIsOperatingHoursOpen] = useState(false);
+  // 가격 섹션 열기/닫기
+  const [isPriceOpen, setIsPriceOpen] = useState(false);
+  // 가격 항목 추가
+  const [newPriceItem, setNewPriceItem] = useState('');
+  const [showAddPriceItem, setShowAddPriceItem] = useState(false);
   // 라벨 편집 모드
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [tempLabel, setTempLabel] = useState('');
@@ -311,13 +327,71 @@ export function StepBusinessInfo() {
     (attr) => !hiddenAttributes.includes(attr)
   );
 
-  // 운영시간 그룹과 기타 속성 분리
+  // 운영시간 그룹과 기타 속성 분리 (가격도 제외)
   const operatingHoursAttrs = baseAttributes.filter((attr) =>
     OPERATING_HOURS_ATTRS.includes(attr)
   );
+  const hasPriceAttr = baseAttributes.includes(PRICE_ATTR);
   const otherBaseAttrs = baseAttributes.filter(
-    (attr) => !OPERATING_HOURS_ATTRS.includes(attr)
+    (attr) => !OPERATING_HOURS_ATTRS.includes(attr) && attr !== PRICE_ATTR
   );
+
+  // 가격 항목 관리 (attributes에서 가격_ 접두사로 저장)
+  const getPriceItems = () => {
+    const items: { id: string; label: string; value: string }[] = [];
+    // 기본 항목 추가
+    DEFAULT_PRICE_ITEMS.forEach((item) => {
+      const key = `가격_${item.id}`;
+      items.push({
+        id: item.id,
+        label: attributeLabels[key] || item.label,
+        value: attributes[key] || '',
+      });
+    });
+    // 커스텀 가격 항목 추가
+    Object.keys(attributes).forEach((key) => {
+      if (key.startsWith('가격_') && !DEFAULT_PRICE_ITEMS.find((d) => `가격_${d.id}` === key)) {
+        const id = key.replace('가격_', '');
+        items.push({
+          id,
+          label: attributeLabels[key] || id,
+          value: attributes[key] || '',
+        });
+      }
+    });
+    return items;
+  };
+
+  const priceItems = getPriceItems();
+
+  // 가격 항목 추가
+  const handleAddPriceItem = () => {
+    if (!newPriceItem.trim()) {
+      toast.error('상품명을 입력해주세요');
+      return;
+    }
+    const key = `가격_${newPriceItem.trim()}`;
+    if (attributes[key] !== undefined) {
+      toast.error('이미 존재하는 상품입니다');
+      return;
+    }
+    setAttribute(key, '');
+    setNewPriceItem('');
+    setShowAddPriceItem(false);
+    toast.success(`"${newPriceItem.trim()}" 상품이 추가되었습니다`);
+  };
+
+  // 가격 항목 삭제
+  const handleDeletePriceItem = (id: string) => {
+    const key = `가격_${id}`;
+    const newAttrs = { ...attributes };
+    delete newAttrs[key];
+    // Store의 setAttributes 사용
+    Object.keys(newAttrs).forEach((k) => setAttribute(k, newAttrs[k]));
+    // 해당 키 삭제는 deleteAttribute 없이 빈값으로 처리
+    setAttribute(key, '');
+    toast.success(`"${attributeLabels[key] || id}" 상품이 삭제되었습니다`);
+  };
 
   // 라벨 가져오기 (커스텀 라벨이 있으면 사용, 없으면 기본)
   const getLabel = (attr: string) => attributeLabels[attr] || attr;
@@ -417,28 +491,17 @@ export function StepBusinessInfo() {
             </div>
             <CardTitle className="text-xl">업체 정보 입력</CardTitle>
           </div>
-          <div className="flex gap-2">
-            {hasSavedInfo && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-[#03c75a] border-[#03c75a]/50 hover:bg-[#03c75a]/10"
-                onClick={loadSavedInfo}
-              >
-                <Download className="w-3 h-3 mr-1" />
-                불러오기
-              </Button>
-            )}
+          {hasSavedInfo && (
             <Button
               variant="outline"
               size="sm"
-              className="h-8 text-[#f72c5b] border-[#f72c5b]/50 hover:bg-[#f72c5b]/10"
-              onClick={saveBusinessInfo}
+              className="h-8 text-[#03c75a] border-[#03c75a]/50 hover:bg-[#03c75a]/10"
+              onClick={loadSavedInfo}
             >
-              <Save className="w-3 h-3 mr-1" />
-              저장
+              <Download className="w-3 h-3 mr-1" />
+              불러오기
             </Button>
-          </div>
+          )}
         </div>
         <CardDescription className="text-base">블로그 글 생성에 필요한 정보를 입력하세요</CardDescription>
       </CardHeader>
@@ -680,6 +743,136 @@ export function StepBusinessInfo() {
               {isOperatingHoursOpen && (
                 <div className="p-3 bg-white grid grid-cols-2 md:grid-cols-4 gap-3">
                   {operatingHoursAttrs.map(renderAttributeField)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 가격 - 열어보기 섹션 (상품별/개월별) */}
+          {hasPriceAttr && (
+            <div className="border border-[#eeeeee] rounded-lg overflow-hidden">
+              <button
+                className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors"
+                onClick={() => setIsPriceOpen(!isPriceOpen)}
+              >
+                <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+                  가격 (상품별/개월별)
+                  <span className="text-xs text-[#9ca3af]">
+                    ({priceItems.length}개 항목)
+                  </span>
+                </span>
+                {isPriceOpen ? (
+                  <ChevronDown className="w-4 h-4 text-[#6b7280]" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-[#6b7280]" />
+                )}
+              </button>
+              {isPriceOpen && (
+                <div className="p-3 bg-white space-y-3">
+                  {/* 가격 항목 목록 */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {priceItems.map((item) => {
+                      const key = `가격_${item.id}`;
+                      const isEditing = editingLabel === key;
+                      const isDefault = DEFAULT_PRICE_ITEMS.some((d) => d.id === item.id);
+
+                      return (
+                        <div key={item.id} className="space-y-1 relative group">
+                          <div className="flex items-center justify-between min-h-[20px]">
+                            {isEditing ? (
+                              <div className="flex items-center gap-1 flex-1">
+                                <Input
+                                  value={tempLabel}
+                                  onChange={(e) => setTempLabel(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && finishEditLabel()}
+                                  className="h-6 text-xs py-0 px-1 w-full"
+                                  autoFocus
+                                />
+                                <button
+                                  className="p-0.5 hover:bg-green-100 rounded"
+                                  onClick={finishEditLabel}
+                                >
+                                  <Check className="w-3 h-3 text-green-600" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <label className="text-xs font-medium text-[#6b7280] truncate flex-1">
+                                  {item.label}
+                                </label>
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    className="p-0.5 hover:bg-blue-100 rounded"
+                                    onClick={() => startEditLabel(key)}
+                                    title="상품명 수정"
+                                  >
+                                    <Pencil className="w-3 h-3 text-blue-500" />
+                                  </button>
+                                  {!isDefault && (
+                                    <button
+                                      className="p-0.5 hover:bg-red-100 rounded"
+                                      onClick={() => handleDeletePriceItem(item.id)}
+                                      title="상품 삭제"
+                                    >
+                                      <Trash2 className="w-3 h-3 text-red-500" />
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <Input
+                            placeholder="예: 150,000원"
+                            value={attributes[key] || ''}
+                            onChange={(e) => setAttribute(key, e.target.value)}
+                            className="h-10 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 상품 추가 */}
+                  {showAddPriceItem ? (
+                    <div className="flex gap-2 p-3 bg-[#f9fafb] rounded-lg border border-[#eeeeee]">
+                      <Input
+                        placeholder="상품명 입력 (예: PT 10회, 개인레슨)"
+                        value={newPriceItem}
+                        onChange={(e) => setNewPriceItem(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddPriceItem()}
+                        className="h-9 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        className="h-9 px-3 bg-[#f72c5b] hover:bg-[#e01f4f] text-white"
+                        onClick={handleAddPriceItem}
+                      >
+                        추가
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 px-2"
+                        onClick={() => {
+                          setShowAddPriceItem(false);
+                          setNewPriceItem('');
+                        }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-[#6b7280] hover:text-[#111111] hover:bg-[#f5f5f5]"
+                      onClick={() => setShowAddPriceItem(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      상품 추가
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
