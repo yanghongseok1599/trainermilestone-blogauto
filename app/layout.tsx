@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
     images: [
       {
-        url: '/3.png',
+        url: '/제목을 입력해주세요. (15).png',
         width: 1200,
         height: 630,
         alt: 'BlogBooster - 피트니스 블로그 자동화',
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
     description: 'AI 기반 SEO 최적화 블로그 자동 생성',
-    images: ['/3.png'],
+    images: ['/제목을 입력해주세요. (15).png'],
     creator: '@blogbooster',
   },
   robots: {
