@@ -9,7 +9,7 @@ import { Download, Image, Pencil, Loader2, RotateCcw, Sparkles, Palette } from '
 import { toast } from 'sonner';
 
 type CardType = 'info' | 'price' | 'checklist';
-type CardTheme = 'default' | 'dark' | 'gradient' | 'minimal';
+type CardTheme = 'default' | 'dark' | 'beige' | 'minimal';
 
 // 테마 설정
 const THEMES: Record<CardTheme, {
@@ -21,6 +21,7 @@ const THEMES: Record<CardTheme, {
   textSecondary: string;
   cardBg: string;
   border: string;
+  lineColor: string;
 }> = {
   default: {
     name: '기본',
@@ -31,6 +32,7 @@ const THEMES: Record<CardTheme, {
     textSecondary: '#6b7280',
     cardBg: '#ffffff',
     border: '#e2e8f0',
+    lineColor: '#e2e8f0',
   },
   dark: {
     name: '다크',
@@ -41,16 +43,18 @@ const THEMES: Record<CardTheme, {
     textSecondary: '#9ca3af',
     cardBg: '#1f2937',
     border: '#374151',
+    lineColor: '#374151',
   },
-  gradient: {
-    name: '그라데이션',
-    bg: ['#667eea', '#764ba2', '#f093fb'],
-    accent: '#ffffff',
-    accentLight: '#ffffff30',
-    text: '#ffffff',
-    textSecondary: '#e2e8f0',
-    cardBg: '#ffffff20',
-    border: '#ffffff40',
+  beige: {
+    name: '베이지',
+    bg: ['#f5f0e8', '#ebe5db', '#e0d9ce'],
+    accent: '#8b7355',
+    accentLight: '#f5f0e8',
+    text: '#3d3d3d',
+    textSecondary: '#8b8b8b',
+    cardBg: '#faf7f2',
+    border: '#d4ccc0',
+    lineColor: '#c9c0b3',
   },
   minimal: {
     name: '미니멀',
@@ -61,6 +65,7 @@ const THEMES: Record<CardTheme, {
     textSecondary: '#737373',
     cardBg: '#ffffff',
     border: '#e5e5e5',
+    lineColor: '#e5e5e5',
   },
 };
 
@@ -74,7 +79,7 @@ function extractInfoFromContent(content: string): {
   price: string;
   features: string;
   checklist: string[];
-  priceItems: { label: string; value: string }[];
+  priceItems: { label: string; value: string; originalPrice?: string }[];
 } {
   const result = {
     businessName: '',
@@ -85,7 +90,7 @@ function extractInfoFromContent(content: string): {
     price: '',
     features: '',
     checklist: [] as string[],
-    priceItems: [] as { label: string; value: string }[],
+    priceItems: [] as { label: string; value: string; originalPrice?: string }[],
   };
 
   if (!content) return result;
@@ -154,7 +159,7 @@ function extractInfoFromContent(content: string): {
       if (label && value) {
         result.priceItems.push({
           label: label.trim(),
-          value: value.trim()
+          value: value.trim(),
         });
       }
     });
@@ -171,28 +176,6 @@ function extractInfoFromContent(content: string): {
   }
 
   return result;
-}
-
-// 텍스트 줄바꿈 처리 함수
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split('');
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const char of words) {
-    const testLine = currentLine + char;
-    const metrics = ctx.measureText(testLine);
-    if (metrics.width > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = char;
-    } else {
-      currentLine = testLine;
-    }
-  }
-  if (currentLine) {
-    lines.push(currentLine);
-  }
-  return lines;
 }
 
 // 텍스트 길이 제한 함수
@@ -243,7 +226,7 @@ export function CardGenerator() {
 
   // 미리보기 카드 생성
   useEffect(() => {
-    const themes: CardTheme[] = ['default', 'dark', 'gradient', 'minimal'];
+    const themes: CardTheme[] = ['default', 'dark', 'beige', 'minimal'];
     themes.forEach((theme, idx) => {
       if (previewRefs.current[idx]) {
         generateCard(previewRefs.current[idx], theme, true);
@@ -270,29 +253,12 @@ export function CardGenerator() {
     }
 
     // Background
-    if (theme === 'gradient') {
-      const gradient = ctx.createLinearGradient(0, 0, 1080, 1080);
-      gradient.addColorStop(0, themeConfig.bg[0]);
-      gradient.addColorStop(0.5, themeConfig.bg[1]);
-      gradient.addColorStop(1, themeConfig.bg[2]);
-      ctx.fillStyle = gradient;
-    } else {
-      const gradient = ctx.createLinearGradient(0, 0, 1080, 1080);
-      gradient.addColorStop(0, themeConfig.bg[0]);
-      gradient.addColorStop(0.5, themeConfig.bg[1]);
-      gradient.addColorStop(1, themeConfig.bg[2]);
-      ctx.fillStyle = gradient;
-    }
+    const gradient = ctx.createLinearGradient(0, 0, 1080, 1080);
+    gradient.addColorStop(0, themeConfig.bg[0]);
+    gradient.addColorStop(0.5, themeConfig.bg[1]);
+    gradient.addColorStop(1, themeConfig.bg[2]);
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1080, 1080);
-
-    // Top accent bar
-    if (theme !== 'minimal') {
-      const accentGradient = ctx.createLinearGradient(0, 0, 1080, 0);
-      accentGradient.addColorStop(0, themeConfig.accent);
-      accentGradient.addColorStop(1, theme === 'gradient' ? '#ffffff80' : '#ff6b8a');
-      ctx.fillStyle = accentGradient;
-      ctx.fillRect(0, 0, 1080, 8);
-    }
 
     // Border
     ctx.strokeStyle = themeConfig.border;
@@ -375,105 +341,125 @@ export function CardGenerator() {
   const drawPriceCard = (ctx: CanvasRenderingContext2D, theme: typeof THEMES.default) => {
     ctx.textAlign = 'center';
 
-    // Title
-    ctx.font = 'bold 52px sans-serif';
-    ctx.fillStyle = theme.accent;
-    ctx.fillText(customText['priceTitle'] || '가격 안내', 540, 100);
-
-    // Business name
-    const displayTitle = truncateText(customText['title'] || extractedInfo.businessName || businessName || '업체명', 20);
-    ctx.font = '36px sans-serif';
+    // 상단 제목 - "가격 안내"
+    ctx.font = 'bold 72px sans-serif';
     ctx.fillStyle = theme.text;
-    ctx.fillText(displayTitle, 540, 170);
+    ctx.fillText(customText['priceTitle'] || '가격 안내', 540, 120);
 
+    // 업체명 바 배경
+    const displayTitle = truncateText(customText['title'] || extractedInfo.businessName || businessName || '업체명', 20);
+
+    // 상단 업체명 바
+    ctx.fillStyle = theme.cardBg;
+    ctx.beginPath();
+    ctx.roundRect(100, 160, 880, 70, 0);
+    ctx.fill();
+
+    // 상단 라인
+    ctx.strokeStyle = theme.lineColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(100, 160);
+    ctx.lineTo(980, 160);
+    ctx.stroke();
+
+    // 하단 라인
+    ctx.beginPath();
+    ctx.moveTo(100, 230);
+    ctx.lineTo(980, 230);
+    ctx.stroke();
+
+    // 업체명 텍스트
+    ctx.font = '32px sans-serif';
+    ctx.fillStyle = theme.accent;
+    ctx.letterSpacing = '8px';
+    ctx.fillText(displayTitle, 540, 205);
+
+    // 가격 항목들
     const priceItems = extractedInfo.priceItems.length > 0 && !customText['priceValue']
-      ? extractedInfo.priceItems.slice(0, 4)
+      ? extractedInfo.priceItems.slice(0, 5)
       : [];
 
     if (priceItems.length > 0) {
-      // 여러 가격 항목
-      const startY = 250;
-      const itemHeight = 100;
-      const itemSpacing = 20;
+      const startY = 280;
+      const itemHeight = 120;
 
       priceItems.forEach((item, idx) => {
-        const y = startY + idx * (itemHeight + itemSpacing);
+        const y = startY + idx * itemHeight;
 
-        // Item background
-        ctx.fillStyle = idx === 0 ? theme.accentLight : (theme === THEMES.dark ? '#374151' : '#f8fafc');
-        ctx.beginPath();
-        ctx.roundRect(150, y, 780, itemHeight, 15);
-        ctx.fill();
+        // 구분선
+        if (idx > 0) {
+          ctx.strokeStyle = theme.lineColor;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(150, y - 10);
+          ctx.lineTo(930, y - 10);
+          ctx.stroke();
+        }
 
-        // Border
-        ctx.strokeStyle = idx === 0 ? theme.accent : theme.border;
+        // 항목명 (왼쪽)
+        ctx.textAlign = 'left';
+        ctx.font = '36px sans-serif';
+        ctx.fillStyle = theme.text;
+        ctx.fillText(truncateText(item.label, 12), 150, y + 50);
+
+        // 원가 (취소선) - 중앙
+        const originalPrice = item.originalPrice || (parseInt(item.value.replace(/[^0-9]/g, '')) * 1.1).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원';
+        ctx.textAlign = 'center';
+        ctx.font = '28px sans-serif';
+        ctx.fillStyle = theme.textSecondary;
+        const originalX = 650;
+        const originalWidth = ctx.measureText(originalPrice).width;
+        ctx.fillText(originalPrice, originalX, y + 50);
+
+        // 취소선
+        ctx.strokeStyle = theme.textSecondary;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.roundRect(150, y, 780, itemHeight, 15);
+        ctx.moveTo(originalX - originalWidth / 2 - 5, y + 45);
+        ctx.lineTo(originalX + originalWidth / 2 + 5, y + 45);
         ctx.stroke();
 
-        // Label
-        ctx.font = '30px sans-serif';
-        ctx.fillStyle = theme.textSecondary;
-        ctx.textAlign = 'left';
-        ctx.fillText(truncateText(item.label, 15), 200, y + 60);
-
-        // Value
-        ctx.font = 'bold 38px sans-serif';
-        ctx.fillStyle = idx === 0 ? theme.accent : theme.text;
+        // 할인가 (오른쪽)
         ctx.textAlign = 'right';
-        ctx.fillText(truncateText(item.value, 15), 880, y + 60);
+        ctx.font = 'bold 44px sans-serif';
+        ctx.fillStyle = theme.text;
+        ctx.fillText(truncateText(item.value, 12), 930, y + 55);
       });
 
-      ctx.textAlign = 'center';
-
-      // Note - 가격 항목 아래에 위치
-      const noteY = startY + priceItems.length * (itemHeight + itemSpacing) + 60;
-      ctx.font = '28px sans-serif';
-      ctx.fillStyle = theme.textSecondary;
-      ctx.fillText(truncateText(customText['priceNote'] || '상세 가격은 방문/전화 상담 시 안내드립니다.', 35), 540, noteY);
-
     } else {
-      // 단일 가격 표시
+      // 단일 가격 또는 기본 표시
       const displayPrice = customText['priceValue'] || extractedInfo.price || attributes['가격'] || '상담 후 결정';
 
-      // Price box
-      ctx.fillStyle = theme.accentLight;
+      // 가격 박스
+      ctx.fillStyle = theme.cardBg;
       ctx.beginPath();
-      ctx.roundRect(200, 280, 680, 200, 20);
+      ctx.roundRect(200, 350, 680, 200, 20);
       ctx.fill();
 
-      ctx.strokeStyle = theme.accent;
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = theme.lineColor;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(200, 280, 680, 200, 20);
+      ctx.roundRect(200, 350, 680, 200, 20);
       ctx.stroke();
 
-      // Price
+      // 가격 텍스트
       ctx.font = 'bold 64px sans-serif';
-      ctx.fillStyle = theme.accent;
-      ctx.fillText(truncateText(displayPrice, 15), 540, 410);
+      ctx.fillStyle = theme.text;
+      ctx.textAlign = 'center';
+      ctx.fillText(truncateText(displayPrice, 15), 540, 475);
 
-      // Note
+      // 안내 문구
       ctx.font = '28px sans-serif';
       ctx.fillStyle = theme.textSecondary;
-      ctx.fillText(truncateText(customText['priceNote'] || '상세 가격은 방문/전화 상담 시 안내드립니다.', 35), 540, 560);
+      ctx.fillText(truncateText(customText['priceNote'] || '상세 가격은 방문/전화 상담 시 안내드립니다.', 35), 540, 620);
     }
 
-    // Features (only if not overlapping)
-    if (extractedInfo.features && !customText['priceNote']) {
-      const featuresY = priceItems.length > 0 ? 880 : 640;
-      ctx.font = '26px sans-serif';
-      ctx.fillStyle = '#10b981';
-      ctx.textAlign = 'center';
-      ctx.fillText(`✓ ${truncateText(extractedInfo.features, 40)}`, 540, featuresY);
-    }
-
-    // CTA
-    ctx.font = 'bold 34px sans-serif';
-    ctx.fillStyle = theme.text;
+    // 하단 업체명
     ctx.textAlign = 'center';
-    ctx.fillText(customText['priceCta'] || '무료 상담 예약하기', 540, 1000);
+    ctx.font = '28px sans-serif';
+    ctx.fillStyle = theme.accent;
+    ctx.fillText(displayTitle, 540, 1000);
   };
 
   const drawChecklistCard = (ctx: CanvasRenderingContext2D, theme: typeof THEMES.default) => {
@@ -649,7 +635,7 @@ ${cardType === 'info' ? `{
     toast.success('블로그 본문에서 정보를 다시 추출했습니다');
   };
 
-  const themes: CardTheme[] = ['default', 'dark', 'gradient', 'minimal'];
+  const themes: CardTheme[] = ['default', 'dark', 'beige', 'minimal'];
 
   return (
     <div className="border-t border-[#eeeeee] pt-6">
@@ -725,7 +711,7 @@ ${cardType === 'info' ? `{
               />
               <div className={cn(
                 'absolute bottom-0 left-0 right-0 py-1 text-[10px] font-medium text-center',
-                theme === 'dark' || theme === 'gradient' ? 'bg-black/50 text-white' : 'bg-white/80 text-[#111111]'
+                theme === 'dark' ? 'bg-black/50 text-white' : 'bg-white/80 text-[#111111]'
               )}>
                 {THEMES[theme].name}
               </div>
