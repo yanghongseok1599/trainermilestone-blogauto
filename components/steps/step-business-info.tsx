@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import { CATEGORIES, CATEGORY_ATTRIBUTES } from '@/lib/constants';
+import { CATEGORIES, CATEGORY_ATTRIBUTES, ATTRIBUTE_PLACEHOLDERS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -491,7 +491,7 @@ export function StepBusinessInfo() {
           )}
         </div>
         <Input
-          placeholder={`${label} 입력`}
+          placeholder={ATTRIBUTE_PLACEHOLDERS[attr] || `${label} 입력`}
           value={attributes[attr] || ''}
           onChange={(e) => setAttribute(attr, e.target.value)}
           className="h-10 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
