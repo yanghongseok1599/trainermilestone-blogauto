@@ -36,9 +36,16 @@ interface SavedBusinessInfo {
 
 // 운영시간/휴무일 그룹
 const OPERATING_HOURS_ATTRS = ['평일 운영', '주말 운영', '공휴일 운영', '휴무일'];
+const OPERATING_HOURS_SECTION_TITLE_KEY = '섹션_운영시간';
+const OPERATING_HOURS_SECTION_DESC_KEY = '섹션_운영시간_설명';
+const DEFAULT_OPERATING_HOURS_TITLE = '운영시간 / 휴무일';
 
 // 가격 관련 속성 (별도 섹션으로 분리)
 const PRICE_ATTR = '가격';
+const PRICE_SECTION_TITLE_KEY = '섹션_가격';
+const PRICE_SECTION_DESC_KEY = '섹션_가격_설명';
+const DEFAULT_PRICE_SECTION_TITLE = '가격 (상품별/개월별)';
+const DEFAULT_PRICE_SECTION_DESC = 'vat별도';
 
 // 기본 가격 항목
 const DEFAULT_PRICE_ITEMS = [
@@ -95,6 +102,18 @@ export function StepBusinessInfo() {
   // 라벨 편집 모드
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [tempLabel, setTempLabel] = useState('');
+  // 가격 섹션 타이틀 편집
+  const [isEditingPriceTitle, setIsEditingPriceTitle] = useState(false);
+  const [tempPriceTitle, setTempPriceTitle] = useState('');
+  // 가격 섹션 설명 편집
+  const [isEditingPriceDesc, setIsEditingPriceDesc] = useState(false);
+  const [tempPriceDesc, setTempPriceDesc] = useState('');
+  // 운영시간 섹션 타이틀 편집
+  const [isEditingOperatingTitle, setIsEditingOperatingTitle] = useState(false);
+  const [tempOperatingTitle, setTempOperatingTitle] = useState('');
+  // 운영시간 섹션 설명 편집
+  const [isEditingOperatingDesc, setIsEditingOperatingDesc] = useState(false);
+  const [tempOperatingDesc, setTempOperatingDesc] = useState('');
 
   // Load saved info on mount
   useEffect(() => {
@@ -724,22 +743,98 @@ export function StepBusinessInfo() {
           {/* 운영시간/휴무일 - 열어보기 섹션 */}
           {operatingHoursAttrs.length > 0 && (
             <div className="border border-[#eeeeee] rounded-lg overflow-hidden">
-              <button
-                className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors"
-                onClick={() => setIsOperatingHoursOpen(!isOperatingHoursOpen)}
-              >
-                <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-                  운영시간 / 휴무일
-                  <span className="text-xs text-[#9ca3af]">
-                    ({operatingHoursAttrs.length}개 항목)
-                  </span>
-                </span>
-                {isOperatingHoursOpen ? (
-                  <ChevronDown className="w-4 h-4 text-[#6b7280]" />
+              <div className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors group">
+                {isEditingOperatingTitle ? (
+                  <div className="flex items-center gap-2 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      value={tempOperatingTitle}
+                      onChange={(e) => setTempOperatingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (tempOperatingTitle.trim()) {
+                            setAttributeLabel(OPERATING_HOURS_SECTION_TITLE_KEY, tempOperatingTitle.trim());
+                            toast.success('섹션명이 변경되었습니다');
+                          }
+                          setIsEditingOperatingTitle(false);
+                          setTempOperatingTitle('');
+                        } else if (e.key === 'Escape') {
+                          setIsEditingOperatingTitle(false);
+                          setTempOperatingTitle('');
+                        }
+                      }}
+                      className="h-7 text-sm py-0 px-2 w-40"
+                      autoFocus
+                    />
+                    <button
+                      className="p-1 hover:bg-green-100 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (tempOperatingTitle.trim()) {
+                          setAttributeLabel(OPERATING_HOURS_SECTION_TITLE_KEY, tempOperatingTitle.trim());
+                          toast.success('섹션명이 변경되었습니다');
+                        }
+                        setIsEditingOperatingTitle(false);
+                        setTempOperatingTitle('');
+                      }}
+                    >
+                      <Check className="w-4 h-4 text-green-600" />
+                    </button>
+                    <button
+                      className="p-1 hover:bg-gray-100 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditingOperatingTitle(false);
+                        setTempOperatingTitle('');
+                      }}
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-[#6b7280]" />
+                  <button
+                    className="flex-1 flex items-center justify-start"
+                    onClick={() => setIsOperatingHoursOpen(!isOperatingHoursOpen)}
+                  >
+                    <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+                      <span
+                        className="hover:text-blue-500 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTempOperatingTitle(attributeLabels[OPERATING_HOURS_SECTION_TITLE_KEY] || DEFAULT_OPERATING_HOURS_TITLE);
+                          setIsEditingOperatingTitle(true);
+                        }}
+                      >
+                        {attributeLabels[OPERATING_HOURS_SECTION_TITLE_KEY] || DEFAULT_OPERATING_HOURS_TITLE}
+                      </span>
+                    </span>
+                  </button>
                 )}
-              </button>
+                <div className="flex items-center gap-1">
+                  {!isEditingOperatingTitle && (
+                    <button
+                      className="p-1 hover:bg-blue-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTempOperatingTitle(attributeLabels[OPERATING_HOURS_SECTION_TITLE_KEY] || DEFAULT_OPERATING_HOURS_TITLE);
+                        setIsEditingOperatingTitle(true);
+                      }}
+                      title="섹션명 수정"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-blue-500" />
+                    </button>
+                  )}
+                  <button
+                    className="p-1"
+                    onClick={() => setIsOperatingHoursOpen(!isOperatingHoursOpen)}
+                  >
+                    {isOperatingHoursOpen ? (
+                      <ChevronDown className="w-4 h-4 text-[#6b7280]" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-[#6b7280]" />
+                    )}
+                  </button>
+                </div>
+              </div>
               {isOperatingHoursOpen && (
                 <div className="p-3 bg-white grid grid-cols-2 md:grid-cols-4 gap-3">
                   {operatingHoursAttrs.map(renderAttributeField)}
@@ -751,22 +846,157 @@ export function StepBusinessInfo() {
           {/* 가격 - 열어보기 섹션 (상품별/개월별) */}
           {hasPriceAttr && (
             <div className="border border-[#eeeeee] rounded-lg overflow-hidden">
-              <button
-                className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors"
-                onClick={() => setIsPriceOpen(!isPriceOpen)}
-              >
-                <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-                  가격 (상품별/개월별)
-                  <span className="text-xs text-[#9ca3af]">
-                    ({priceItems.length}개 항목)
-                  </span>
-                </span>
-                {isPriceOpen ? (
-                  <ChevronDown className="w-4 h-4 text-[#6b7280]" />
+              <div className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors group">
+                {isEditingPriceTitle ? (
+                  <div className="flex items-center gap-2 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      value={tempPriceTitle}
+                      onChange={(e) => setTempPriceTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (tempPriceTitle.trim()) {
+                            setAttributeLabel(PRICE_SECTION_TITLE_KEY, tempPriceTitle.trim());
+                            toast.success('섹션명이 변경되었습니다');
+                          }
+                          setIsEditingPriceTitle(false);
+                          setTempPriceTitle('');
+                        } else if (e.key === 'Escape') {
+                          setIsEditingPriceTitle(false);
+                          setTempPriceTitle('');
+                        }
+                      }}
+                      className="h-7 text-sm py-0 px-2 w-48"
+                      autoFocus
+                    />
+                    <button
+                      className="p-1 hover:bg-green-100 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (tempPriceTitle.trim()) {
+                          setAttributeLabel(PRICE_SECTION_TITLE_KEY, tempPriceTitle.trim());
+                          toast.success('섹션명이 변경되었습니다');
+                        }
+                        setIsEditingPriceTitle(false);
+                        setTempPriceTitle('');
+                      }}
+                    >
+                      <Check className="w-4 h-4 text-green-600" />
+                    </button>
+                    <button
+                      className="p-1 hover:bg-gray-100 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditingPriceTitle(false);
+                        setTempPriceTitle('');
+                      }}
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                ) : isEditingPriceDesc ? (
+                  <div className="flex items-center gap-2 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-sm font-medium text-[#6b7280]">
+                      {attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE}
+                    </span>
+                    <Input
+                      value={tempPriceDesc}
+                      onChange={(e) => setTempPriceDesc(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (tempPriceDesc.trim()) {
+                            setAttributeLabel(PRICE_SECTION_DESC_KEY, tempPriceDesc.trim());
+                            toast.success('설명이 변경되었습니다');
+                          }
+                          setIsEditingPriceDesc(false);
+                          setTempPriceDesc('');
+                        } else if (e.key === 'Escape') {
+                          setIsEditingPriceDesc(false);
+                          setTempPriceDesc('');
+                        }
+                      }}
+                      className="h-6 text-xs py-0 px-2 w-24"
+                      autoFocus
+                    />
+                    <button
+                      className="p-1 hover:bg-green-100 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (tempPriceDesc.trim()) {
+                          setAttributeLabel(PRICE_SECTION_DESC_KEY, tempPriceDesc.trim());
+                          toast.success('설명이 변경되었습니다');
+                        }
+                        setIsEditingPriceDesc(false);
+                        setTempPriceDesc('');
+                      }}
+                    >
+                      <Check className="w-3 h-3 text-green-600" />
+                    </button>
+                    <button
+                      className="p-1 hover:bg-gray-100 rounded"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditingPriceDesc(false);
+                        setTempPriceDesc('');
+                      }}
+                    >
+                      <X className="w-3 h-3 text-gray-500" />
+                    </button>
+                  </div>
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-[#6b7280]" />
+                  <button
+                    className="flex-1 flex items-center justify-start"
+                    onClick={() => setIsPriceOpen(!isPriceOpen)}
+                  >
+                    <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+                      <span
+                        className="hover:text-blue-500 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTempPriceTitle(attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE);
+                          setIsEditingPriceTitle(true);
+                        }}
+                      >
+                        {attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE}
+                      </span>
+                      <span
+                        className="text-xs text-[#9ca3af] hover:text-blue-500 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTempPriceDesc(attributeLabels[PRICE_SECTION_DESC_KEY] || DEFAULT_PRICE_SECTION_DESC);
+                          setIsEditingPriceDesc(true);
+                        }}
+                      >
+                        {attributeLabels[PRICE_SECTION_DESC_KEY] || DEFAULT_PRICE_SECTION_DESC}
+                      </span>
+                    </span>
+                  </button>
                 )}
-              </button>
+                <div className="flex items-center gap-1">
+                  {!isEditingPriceTitle && !isEditingPriceDesc && (
+                    <button
+                      className="p-1 hover:bg-blue-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTempPriceTitle(attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE);
+                        setIsEditingPriceTitle(true);
+                      }}
+                      title="섹션명 수정"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-blue-500" />
+                    </button>
+                  )}
+                  <button
+                    className="p-1"
+                    onClick={() => setIsPriceOpen(!isPriceOpen)}
+                  >
+                    {isPriceOpen ? (
+                      <ChevronDown className="w-4 h-4 text-[#6b7280]" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-[#6b7280]" />
+                    )}
+                  </button>
+                </div>
+              </div>
               {isPriceOpen && (
                 <div className="p-3 bg-white space-y-3">
                   {/* 가격 항목 목록 */}

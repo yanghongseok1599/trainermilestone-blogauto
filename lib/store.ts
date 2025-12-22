@@ -1,6 +1,22 @@
 import { create } from 'zustand';
 import { AppState, FitnessCategory, ApiProvider, ImageData, SearchIntent } from '@/types';
 
+// localStorage 키
+const API_KEY_STORAGE_KEY = 'blogbooster_api_key';
+const API_PROVIDER_STORAGE_KEY = 'blogbooster_api_provider';
+
+// 저장된 API 키 로드 (클라이언트에서만)
+const loadSavedApiKey = (): string => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+};
+
+const loadSavedApiProvider = (): ApiProvider => {
+  if (typeof window === 'undefined') return 'gemini';
+  const saved = localStorage.getItem(API_PROVIDER_STORAGE_KEY);
+  return (saved === 'openai' || saved === 'gemini') ? saved : 'gemini';
+};
+
 const initialState = {
   currentStep: 0,
   apiProvider: 'gemini' as ApiProvider,
@@ -19,6 +35,7 @@ const initialState = {
   images: [] as ImageData[],
   imageAnalysisContext: '',
   generatedContent: '',
+  extractedImagePrompts: [] as { korean: string; english: string }[],
   searchIntent: 'location' as SearchIntent,
   writerPersona: '',
   targetReader: '',
@@ -28,8 +45,20 @@ export const useAppStore = create<AppState>((set) => ({
   ...initialState,
 
   setCurrentStep: (step) => set({ currentStep: step }),
-  setApiProvider: (provider) => set({ apiProvider: provider }),
-  setApiKey: (key) => set({ apiKey: key }),
+  setApiProvider: (provider) => {
+    // localStorage에 저장
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(API_PROVIDER_STORAGE_KEY, provider);
+    }
+    set({ apiProvider: provider });
+  },
+  setApiKey: (key) => {
+    // localStorage에 저장
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(API_KEY_STORAGE_KEY, key);
+    }
+    set({ apiKey: key });
+  },
   setCategory: (category) => set({ category, attributes: {} }),
 
   setBusinessInfo: (info) => set((state) => ({ ...state, ...info })),
@@ -98,6 +127,8 @@ export const useAppStore = create<AppState>((set) => ({
   setImageAnalysisContext: (context) => set({ imageAnalysisContext: context }),
 
   setGeneratedContent: (content) => set({ generatedContent: content }),
+
+  setExtractedImagePrompts: (prompts) => set({ extractedImagePrompts: prompts }),
 
   setSearchIntent: (intent) => set({ searchIntent: intent }),
 

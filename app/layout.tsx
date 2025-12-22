@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     default: 'BlogBooster - 피트니스 블로그 자동화 시스템',
     template: '%s | BlogBooster',
   },
-  description: '333법칙 + 네이버 AI 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스, 요가 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
+  description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스, 요가 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
   keywords: [
     '블로그 자동화',
     '피트니스 블로그',
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     '요가 블로그',
     '네이버 블로그 SEO',
     'AI 블로그 작성',
-    '333법칙',
+    'SEO 최적화',
     '블로그 콘텐츠 생성',
     '피트니스 마케팅',
     '헬스장 홍보',
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     url: 'https://blogbooster.kr',
     siteName: 'BlogBooster',
     title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
-    description: '333법칙 + 네이버 AI 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
+    description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
     images: [
       {
         url: '/og-image.png',
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
-    description: '333법칙 + 네이버 AI 최적화 블로그 자동 생성',
+    description: 'AI 기반 SEO 최적화 블로그 자동 생성',
     images: ['/og-image.png'],
     creator: '@blogbooster',
   },

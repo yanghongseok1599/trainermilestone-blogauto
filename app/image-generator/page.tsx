@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ImagePlus, Sparkles, Copy, Wand2, Trash2, Image, Loader2, Download, Key, AlertCircle, Play } from 'lucide-react';
+import { ArrowLeft, ImagePlus, Sparkles, Copy, Wand2, Trash2, Image, Loader2, Download, Key, AlertCircle, Play, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { parseImagePrompts, categoryStyles, type ParsedImagePrompt } from '@/lib/image-prompt-utils';
+import { useAppStore } from '@/lib/store';
 
 type ApiProvider = 'openai' | 'gemini';
 
@@ -34,6 +35,7 @@ interface ImageWithGeneration extends ParsedImagePrompt {
 }
 
 export default function ImageGeneratorPage() {
+  const { extractedImagePrompts, category: storeCategory, setExtractedImagePrompts, apiKey: storeApiKey, apiProvider: storeApiProvider } = useAppStore();
   const [inputPrompt, setInputPrompt] = useState('');
   const [category, setCategory] = useState('');
   const [parsedImages, setParsedImages] = useState<ImageWithGeneration[]>([]);
@@ -41,8 +43,66 @@ export default function ImageGeneratorPage() {
   const [apiProvider, setApiProvider] = useState<ApiProvider>('openai');
   const [selectedModel, setSelectedModel] = useState('gpt-image-1');
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [hasLoadedFromStore, setHasLoadedFromStore] = useState(false);
 
   const currentModels = apiProvider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
+
+  // 저장된 API 키 로드
+  useEffect(() => {
+    // 먼저 store에서 로드 시도
+    if (storeApiKey) {
+      setApiKey(storeApiKey);
+      if (storeApiProvider === 'openai' || storeApiProvider === 'gemini') {
+        setApiProvider(storeApiProvider as ApiProvider);
+        setSelectedModel(storeApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.0-flash-exp-image-generation');
+      }
+    } else {
+      // localStorage에서 로드
+      const savedApiKey = localStorage.getItem('blogbooster_api_key');
+      const savedApiProvider = localStorage.getItem('blogbooster_api_provider');
+
+      if (savedApiKey) {
+        setApiKey(savedApiKey);
+      }
+      if (savedApiProvider === 'openai' || savedApiProvider === 'gemini') {
+        setApiProvider(savedApiProvider as ApiProvider);
+        setSelectedModel(savedApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.0-flash-exp-image-generation');
+      }
+    }
+  }, [storeApiKey, storeApiProvider]);
+
+  // 블로그 본문에서 연동된 이미지 프롬프트가 있으면 자동 로드
+  useEffect(() => {
+    if (extractedImagePrompts.length > 0 && !hasLoadedFromStore) {
+      // 카테고리 설정
+      if (storeCategory) {
+        setCategory(storeCategory);
+      }
+
+      // 프롬프트를 파싱된 형태로 변환
+      const loadedPrompts: ImageWithGeneration[] = extractedImagePrompts.map((prompt, idx) => ({
+        id: `img-${idx}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        korean: prompt.korean,
+        english: prompt.english,
+        index: idx,
+        generatedUrl: undefined,
+        isGenerating: false,
+        error: undefined,
+      }));
+
+      setParsedImages(loadedPrompts);
+      setHasLoadedFromStore(true);
+
+      // 한글 프롬프트 목록을 입력창에도 표시
+      const koreanPromptText = extractedImagePrompts.map(p => `[이미지: ${p.korean}]`).join('\n');
+      setInputPrompt(koreanPromptText);
+
+      toast.success(`블로그 본문에서 ${extractedImagePrompts.length}개의 이미지 프롬프트를 불러왔습니다`);
+
+      // 연동 완료 후 store 초기화 (중복 로드 방지)
+      setExtractedImagePrompts([]);
+    }
+  }, [extractedImagePrompts, storeCategory, hasLoadedFromStore, setExtractedImagePrompts]);
 
   const handleParse = useCallback(() => {
     if (!inputPrompt.trim()) {
@@ -441,6 +501,21 @@ export default function ImageGeneratorPage() {
         {/* Parsed Images Section */}
         {parsedImages.length > 0 && (
           <div className="space-y-6">
+            {/* Blog Content Connection Banner */}
+            {hasLoadedFromStore && (
+              <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-xl p-4 flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-[#10b981] shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-[#10b981]">
+                    블로그 본문과 연동됨
+                  </p>
+                  <p className="text-xs text-[#059669]">
+                    블로그 자동화에서 생성된 이미지 프롬프트가 자동으로 불러와졌습니다
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Header with Action Buttons */}
             <div className="flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-2xl font-bold text-[#111111] flex items-center gap-2">

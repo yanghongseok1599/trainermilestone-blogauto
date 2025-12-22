@@ -122,6 +122,10 @@ export interface AppState {
   generatedContent: string;
   setGeneratedContent: (content: string) => void;
 
+  // 블로그 본문에서 추출된 이미지 프롬프트 (이미지 생성기 연동용)
+  extractedImagePrompts: { korean: string; english: string }[];
+  setExtractedImagePrompts: (prompts: { korean: string; english: string }[]) => void;
+
   // 검색 의도
   searchIntent: SearchIntent;
   setSearchIntent: (intent: SearchIntent) => void;

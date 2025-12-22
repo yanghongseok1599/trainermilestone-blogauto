@@ -24,7 +24,7 @@ import { generateEnglishPrompt } from '@/lib/image-prompt-utils';
 export function StepResult() {
   const store = useAppStore();
   const { user } = useAuth();
-  const { generatedContent, businessName, category, setCurrentStep, reset, setGeneratedContent, apiKey, apiProvider } = store;
+  const { generatedContent, businessName, category, setCurrentStep, reset, setGeneratedContent, apiKey, apiProvider, setExtractedImagePrompts } = store;
   const [presetName, setPresetName] = useState('');
   const [modifyRequest, setModifyRequest] = useState('');
   const [isModifying, setIsModifying] = useState(false);
@@ -209,8 +209,28 @@ export function StepResult() {
             <div className="w-3 h-3 rounded-full bg-green-500/70" />
             <span className="text-xs text-muted-foreground ml-2">generated-content.txt</span>
           </div>
-          <div className="p-5 max-h-[400px] overflow-y-auto">
-            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-[#111111] font-sans">{generatedContent}</pre>
+          <div
+            className="p-5 max-h-[400px] overflow-y-auto"
+            onCopy={(e) => {
+              // Preserve line breaks when copying via drag selection
+              const selection = window.getSelection();
+              if (selection) {
+                e.preventDefault();
+                const text = selection.toString();
+                e.clipboardData?.setData('text/plain', text);
+              }
+            }}
+          >
+            <div
+              className="whitespace-pre-wrap text-sm leading-relaxed text-[#111111] font-sans"
+              style={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                userSelect: 'text'
+              }}
+            >
+              {generatedContent}
+            </div>
           </div>
         </div>
 
@@ -259,7 +279,11 @@ export function StepResult() {
                 variant="outline"
                 size="sm"
                 className="h-8 px-3 text-xs border-[#10b981] text-[#10b981] hover:bg-[#10b981] hover:text-white transition-colors"
-                onClick={() => window.open('/image-generator', '_blank')}
+                onClick={() => {
+                  // 이미지 프롬프트를 store에 저장 후 이미지 생성기 페이지로 이동
+                  setExtractedImagePrompts(imagePrompts);
+                  window.open('/image-generator', '_blank');
+                }}
               >
                 <ExternalLink className="w-3 h-3 mr-1" />
                 이미지 생성하기

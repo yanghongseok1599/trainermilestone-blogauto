@@ -38,10 +38,21 @@ export function StepApiSetup() {
             setApiKey(apiSettings.apiKey);
           }
         } else {
-          // Load from localStorage
-          const saved = localStorage.getItem('blogbooster_presets');
-          if (saved) {
-            setPresets(JSON.parse(saved));
+          // Load from localStorage (비로그인 사용자)
+          const savedPresets = localStorage.getItem('blogbooster_presets');
+          if (savedPresets) {
+            setPresets(JSON.parse(savedPresets));
+          }
+
+          // API 키 로드 (localStorage)
+          const savedApiKey = localStorage.getItem('blogbooster_api_key');
+          const savedApiProvider = localStorage.getItem('blogbooster_api_provider');
+
+          if (savedApiKey) {
+            setApiKey(savedApiKey);
+          }
+          if (savedApiProvider === 'openai' || savedApiProvider === 'gemini') {
+            setApiProvider(savedApiProvider);
           }
         }
       } catch (error) {
@@ -172,11 +183,19 @@ export function StepApiSetup() {
               {showKey ? <EyeOff className="h-4 w-4 text-[#6b7280]" /> : <Eye className="h-4 w-4 text-[#6b7280]" />}
             </Button>
           </div>
-          <p className="text-xs text-[#9ca3af]">
-            {apiProvider === 'gemini'
-              ? 'Google AI Studio (aistudio.google.com)에서 무료 API 키 발급 가능'
-              : 'OpenAI Platform (platform.openai.com)에서 API 키 발급 필요 (유료)'}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[#9ca3af]">
+              {apiProvider === 'gemini'
+                ? 'Google AI Studio (aistudio.google.com)에서 무료 API 키 발급 가능'
+                : 'OpenAI Platform (platform.openai.com)에서 API 키 발급 필요 (유료)'}
+            </p>
+            {apiKey && (
+              <span className="text-xs text-[#10b981] flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                자동 저장됨
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Preset Select */}

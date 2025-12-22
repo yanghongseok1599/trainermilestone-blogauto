@@ -1,106 +1,120 @@
 // Korean to English prompt translation - detailed keyword mappings
+// 모든 프롬프트에 한국인/한국 배경 강조
 export const detailedPromptMap: Record<string, string> = {
-  // 시설/공간
-  '외관': 'modern building exterior with glass facade, clean architectural design, professional signage, welcoming entrance',
-  '건물': 'contemporary fitness center building, well-maintained exterior, attractive storefront, urban setting',
-  '입구': 'welcoming gym entrance, automatic glass doors, clean reception area, professional atmosphere',
-  '로비': 'spacious gym lobby with modern furniture, reception desk, comfortable waiting area, ambient lighting',
-  '접수': 'professional reception counter with friendly staff, organized check-in area, digital screens',
+  // 시설/공간 (한국 피트니스 센터 스타일)
+  '외관': 'modern Korean fitness center building exterior, glass facade, clean architectural design, Korean street setting, professional Korean signage',
+  '건물': 'contemporary Korean fitness center building, well-maintained exterior, Korean urban setting, attractive storefront in Korea',
+  '입구': 'welcoming Korean gym entrance, automatic glass doors, clean reception area, Korean fitness center atmosphere',
+  '로비': 'spacious Korean gym lobby with modern furniture, reception desk, comfortable waiting area, Korean interior design',
+  '접수': 'professional Korean fitness center reception counter, Korean receptionist, organized check-in area, digital screens',
 
-  // 운동 공간
-  '유산소': 'rows of premium cardio machines, treadmills and ellipticals, large windows with natural light, spacious cardio zone',
-  '러닝머신': 'high-end treadmills with individual screens, multiple running machines in a row, clean modern design',
-  '사이클': 'professional spin bikes, indoor cycling area, motivational environment, group cycling setup',
-  '프리웨이트': 'extensive free weight section with dumbbells and barbells, weight racks, rubber flooring, mirrors',
-  '덤벨': 'organized dumbbell rack with various weights, chrome dumbbells, professional weight training area',
-  '바벨': 'olympic barbell stations, squat racks, deadlift platforms, powerlifting area',
-  '머신': 'state-of-the-art weight machines, cable crossover station, leg press, professional gym equipment',
-  '스트레칭': 'dedicated stretching zone with mats, foam rollers, flexibility training area, calm atmosphere',
+  // 운동 공간 (한국 피트니스 센터)
+  '유산소': 'rows of premium cardio machines in Korean fitness center, treadmills and ellipticals, large windows, spacious cardio zone in Korea',
+  '러닝머신': 'high-end treadmills in Korean gym, individual screens, multiple running machines, modern Korean fitness center design',
+  '사이클': 'professional spin bikes in Korean fitness studio, indoor cycling area, motivational Korean environment',
+  '프리웨이트': 'extensive free weight section in Korean gym, dumbbells and barbells, weight racks, rubber flooring, mirrors',
+  '덤벨': 'organized dumbbell rack in Korean fitness center, various weights, chrome dumbbells, professional Korean gym',
+  '바벨': 'olympic barbell stations in Korean gym, squat racks, deadlift platforms, powerlifting area in Korea',
+  '머신': 'state-of-the-art weight machines in Korean fitness center, cable crossover station, leg press, professional Korean gym equipment',
+  '스트레칭': 'dedicated stretching zone in Korean gym, mats, foam rollers, flexibility training area, calm atmosphere',
 
-  // 수업/프로그램
-  'GX': 'group exercise studio with mirror wall, wooden floor, sound system, group fitness class in progress',
-  '그룹': 'energetic group fitness class, diverse participants, instructor leading workout, motivational environment',
-  '수업': 'fitness class in session, participants following instructor, organized workout space, high energy',
-  'PT': 'personal training session, trainer guiding client through exercise, one-on-one instruction, focused workout',
-  '1:1': 'private personal training, individualized attention, trainer correcting form, premium service',
+  // 수업/프로그램 (한국인 참여자)
+  'GX': 'group exercise studio in Korean fitness center, mirror wall, wooden floor, Korean participants in group fitness class',
+  '그룹': 'energetic group fitness class with Korean women and men, Korean instructor leading workout, motivational Korean gym environment',
+  '수업': 'fitness class in Korean gym, Korean participants following Korean instructor, organized workout space, high energy',
+  'PT': 'personal training session in Korea, Korean trainer guiding Korean client through exercise, one-on-one instruction',
+  '1:1': 'private personal training in Korean gym, Korean trainer with Korean client, individualized attention, premium service',
 
-  // 트레이너/강사
-  '트레이너': 'professional certified personal trainer, athletic physique, confident posture, wearing branded uniform',
-  '강사': 'experienced fitness instructor, leading class with enthusiasm, professional attire, motivating pose',
-  '전문가': 'fitness expert with certifications displayed, professional headshot, trustworthy appearance',
-  '코치': 'dedicated fitness coach, supportive demeanor, guiding client, hands-on instruction',
-  '자격증': 'framed fitness certifications on wall, professional credentials, training certificates display',
-  '수료증': 'official fitness certification documents, professional training completion, framed credentials',
+  // 트레이너/강사 (한국인 트레이너)
+  '트레이너': 'handsome Korean male personal trainer, athletic Korean physique, confident posture, wearing branded uniform, professional Korean fitness trainer',
+  '강사': 'beautiful Korean female fitness instructor, leading class with enthusiasm, professional attire, Korean woman trainer',
+  '전문가': 'Korean fitness expert with certifications, professional Korean trainer headshot, trustworthy Korean appearance',
+  '코치': 'dedicated Korean fitness coach, supportive Korean trainer, guiding Korean client, hands-on instruction',
+  '자격증': 'framed Korean fitness certifications on wall, professional Korean credentials, training certificates display',
+  '수료증': 'official Korean fitness certification documents, professional training completion, Korean framed credentials',
 
-  // 고객/후기
-  '회원': 'satisfied gym member smiling, healthy appearance, workout attire, positive energy',
-  '고객': 'happy fitness client, achieving workout goals, motivated expression, healthy lifestyle',
-  '후기': 'real client testimonial photo, genuine smile, fitness transformation success',
-  '비포애프터': 'dramatic body transformation comparison, before and after side by side, visible results, inspiring change',
-  '변화': 'fitness journey progress photos, body composition improvement, muscle gain or weight loss results',
+  // 고객/후기 (한국인 고객)
+  '회원': 'satisfied Korean gym member smiling, healthy Korean woman or man, workout attire, positive energy, beautiful Korean person',
+  '고객': 'happy Korean fitness client, achieving workout goals, motivated Korean person, healthy Korean lifestyle',
+  '후기': 'real Korean client testimonial photo, genuine Korean smile, Korean fitness transformation success',
+  '비포애프터': 'dramatic Korean body transformation comparison, Korean before and after side by side, visible results, inspiring Korean fitness change',
+  '변화': 'Korean fitness journey progress photos, Korean body composition improvement, Korean muscle gain or weight loss results',
 
-  // 가격/프로모션
-  '가격': 'clear pricing board, membership options displayed, transparent cost information, value packages',
-  '가격표': 'detailed price list with various membership tiers, promotional offers, easy to read format',
-  '할인': 'special promotional banner, discount offer display, limited time deal, attractive pricing',
-  '이용권': 'membership cards and packages, various subscription options, premium membership display',
-  '등록': 'membership registration desk, sign-up process, welcoming new member experience',
+  // 가격/프로모션 (한국어 표기)
+  '가격': 'clear Korean pricing board, membership options displayed in Korean, transparent cost information, value packages in Korea',
+  '가격표': 'detailed Korean price list with membership tiers, promotional offers in Korean, easy to read format',
+  '할인': 'special Korean promotional banner, discount offer display in Korean, limited time deal, attractive pricing in Korea',
+  '이용권': 'Korean membership cards and packages, subscription options, premium membership display with Korean text',
+  '등록': 'membership registration desk in Korean gym, Korean sign-up process, welcoming new Korean member',
 
-  // 편의시설
-  '주차': 'spacious parking lot, underground parking garage, convenient parking access, ample parking spaces',
-  '주차장': 'well-lit parking facility, multiple parking spots, easy access, security cameras',
-  '샤워실': 'clean modern shower facilities, private shower stalls, premium toiletries, spa-like atmosphere',
-  '락커': 'secure personal lockers, locker room facilities, clean changing area, organized space',
-  '탈의실': 'private changing rooms, clean and well-maintained, mirror and bench, comfortable environment',
+  // 편의시설 (한국 피트니스 센터 시설)
+  '주차': 'spacious Korean parking lot, underground parking garage in Korea, convenient parking access',
+  '주차장': 'well-lit Korean parking facility, multiple parking spots, easy access, Korean security cameras',
+  '샤워실': 'clean modern Korean shower facilities, private shower stalls, premium toiletries, Korean spa-like atmosphere',
+  '락커': 'secure personal lockers in Korean gym, locker room facilities, clean Korean changing area',
+  '탈의실': 'private changing rooms in Korean fitness center, clean and well-maintained, Korean gym environment',
 
-  // 분위기/인테리어
-  '인테리어': 'modern gym interior design, stylish decor, professional ambiance, motivating environment',
-  '분위기': 'energetic gym atmosphere, motivational quotes on walls, dynamic lighting, inspiring environment',
-  '조명': 'professional gym lighting, bright and energizing, LED fixtures, well-illuminated workout space',
-  '거울': 'full-length mirror walls, reflection of gym equipment, clean mirrors, professional setup',
+  // 분위기/인테리어 (한국식 인테리어)
+  '인테리어': 'modern Korean gym interior design, stylish Korean decor, professional ambiance, motivating Korean environment',
+  '분위기': 'energetic Korean gym atmosphere, motivational quotes in Korean on walls, dynamic lighting, inspiring Korean environment',
+  '조명': 'professional Korean gym lighting, bright and energizing, LED fixtures, well-illuminated Korean workout space',
+  '거울': 'full-length mirror walls in Korean gym, reflection of gym equipment, clean mirrors, professional Korean setup',
 
-  // 업종별
-  '헬스장': 'comprehensive fitness center with cardio and weight areas, modern gym interior, full-service facility',
-  '필라테스': 'elegant pilates studio with reformer machines, barrel and cadillac equipment, serene atmosphere, wooden floors',
-  '요가': 'peaceful yoga studio with bamboo decor, meditation corner, natural lighting, zen atmosphere, yoga mats arranged',
-  '크로스핏': 'functional fitness gym with pull-up rigs, kettlebells, medicine balls, plyometric boxes, industrial design',
-  '복싱': 'boxing gym with heavy bags, speed bags, boxing ring, training area, combat sports atmosphere',
-  '스피닝': 'dedicated spinning studio, rows of spin bikes, dramatic lighting, motivational screens',
-  '수영': 'indoor swimming pool, lap lanes, aqua fitness area, clean pool facility, professional lifeguard',
+  // 업종별 (한국 피트니스 업종)
+  '헬스장': 'comprehensive Korean fitness center with cardio and weight areas, modern Korean gym interior, full-service Korean facility',
+  '필라테스': 'elegant Korean pilates studio with reformer machines, Korean women practicing pilates, serene atmosphere, wooden floors in Korea',
+  '요가': 'peaceful Korean yoga studio with bamboo decor, Korean women in meditation, natural lighting, zen Korean atmosphere',
+  '크로스핏': 'functional Korean crossfit gym with pull-up rigs, kettlebells, Korean athletes training, industrial Korean design',
+  '복싱': 'Korean boxing gym with heavy bags, speed bags, Korean boxers training, combat sports atmosphere in Korea',
+  '스피닝': 'dedicated Korean spinning studio, rows of spin bikes, Korean participants, dramatic lighting',
+  '수영': 'indoor Korean swimming pool, lap lanes, aqua fitness area, clean Korean pool facility',
 
-  // 동작/포즈
-  '스쿼트': 'athlete performing squat exercise, proper form demonstration, weight training technique',
-  '데드리프트': 'deadlift exercise demonstration, barbell lifting, proper technique, strength training',
-  '벤치프레스': 'bench press exercise, chest workout, spotter assisting, weight training form',
-  '런지': 'lunge exercise demonstration, leg workout, proper form, functional training',
-  '플랭크': 'plank hold exercise, core workout, proper alignment, bodyweight training',
+  // 동작/포즈 (한국인 모델)
+  '스쿼트': 'Korean athlete performing squat exercise, proper form demonstration, Korean weight training technique',
+  '데드리프트': 'Korean person deadlift exercise demonstration, barbell lifting, proper technique, Korean strength training',
+  '벤치프레스': 'Korean man bench press exercise, chest workout, Korean spotter assisting, weight training form',
+  '런지': 'Korean woman lunge exercise demonstration, leg workout, proper form, Korean functional training',
+  '플랭크': 'Korean person plank hold exercise, core workout, proper alignment, Korean bodyweight training',
+
+  // 추가 한국인 특화 키워드
+  '남자': 'handsome Korean man, athletic Korean male, muscular Korean guy, fit Korean man with defined muscles',
+  '여자': 'beautiful Korean woman, fit Korean female, graceful Korean lady, attractive Korean woman exercising',
+  '운동': 'Korean person exercising, Korean fitness activity, Korean workout session, healthy Korean lifestyle',
+  '몸': 'fit Korean body, toned Korean physique, healthy Korean figure, Korean athletic body shape',
+  '얼굴': 'attractive Korean face, Korean beauty, natural Korean look, photogenic Korean features',
 };
 
-// 카테고리별 기본 스타일
+// 카테고리별 기본 스타일 (한국 피트니스 센터 스타일)
 export const categoryStyles: Record<string, string> = {
-  '헬스장': 'modern fitness gym, industrial chic design, high ceilings, professional equipment, motivating atmosphere',
-  '필라테스': 'elegant pilates studio, minimalist design, natural wood elements, soft lighting, peaceful environment',
-  'PT샵': 'boutique personal training facility, premium equipment, private workout spaces, exclusive atmosphere',
-  '요가': 'serene yoga studio, zen minimalist design, natural materials, calming colors, peaceful sanctuary',
-  '크로스핏': 'industrial crossfit box, functional fitness setup, raw concrete floors, chalk and sweat atmosphere',
-  '복싱': 'authentic boxing gym, boxing ring centerpiece, heavy bags, competitive training environment',
+  '헬스장': 'modern Korean fitness gym, industrial chic design, high ceilings, professional equipment, Korean fitness center atmosphere, Seoul gym style',
+  '필라테스': 'elegant Korean pilates studio, minimalist Korean design, natural wood elements, soft lighting, peaceful Korean environment, Korean women',
+  'PT샵': 'boutique Korean personal training facility, premium equipment, private workout spaces, exclusive Korean atmosphere, Korean trainer',
+  '요가': 'serene Korean yoga studio, zen minimalist Korean design, natural materials, calming colors, peaceful Korean sanctuary, Korean yogis',
+  '크로스핏': 'industrial Korean crossfit box, functional fitness setup, raw concrete floors, Korean athletes training, Korean crossfit atmosphere',
+  '복싱': 'authentic Korean boxing gym, boxing ring centerpiece, heavy bags, Korean boxers training, competitive Korean atmosphere',
 };
 
 export function generateEnglishPrompt(koreanDescription: string, category: string = ''): string {
   const parts: string[] = [];
 
-  // 1. 사진 품질 기본 설정
+  // 1. 사진 품질 기본 설정 + 한국인/한국 배경 필수 지정
   parts.push('professional photography');
   parts.push('ultra high quality');
   parts.push('sharp focus');
   parts.push('natural lighting');
 
-  // 2. 카테고리 스타일 추가
+  // 2. 한국인/한국 배경 필수 (모든 이미지에 적용)
+  parts.push('Korean person');
+  parts.push('Korean ethnicity');
+  parts.push('Korean fitness center in Seoul');
+  parts.push('authentic Korean setting');
+
+  // 3. 카테고리 스타일 추가
   if (category && categoryStyles[category]) {
     parts.push(categoryStyles[category]);
   }
 
-  // 3. 한글 설명에서 키워드 매칭하여 상세 프롬프트 추가
+  // 4. 한글 설명에서 키워드 매칭하여 상세 프롬프트 추가
   const matchedDetails: string[] = [];
   for (const [korean, english] of Object.entries(detailedPromptMap)) {
     if (koreanDescription.includes(korean)) {
@@ -112,7 +126,7 @@ export function generateEnglishPrompt(koreanDescription: string, category: strin
     parts.push(...matchedDetails);
   }
 
-  // 4. 숫자 정보 추출 및 반영 (예: "20대", "50평")
+  // 5. 숫자 정보 추출 및 반영 (예: "20대", "50평")
   const numberMatch = koreanDescription.match(/(\d+)(대|평|개|명|시간|분)/g);
   if (numberMatch) {
     numberMatch.forEach(match => {
@@ -122,23 +136,25 @@ export function generateEnglishPrompt(koreanDescription: string, category: strin
       } else if (match.includes('평')) {
         parts.push(`spacious ${num} pyeong area`);
       } else if (match.includes('명')) {
-        parts.push(`group of ${num} people`);
+        parts.push(`group of ${num} Korean people`);
       }
     });
   }
 
-  // 5. 매칭되지 않은 경우 기본 프롬프트
+  // 6. 매칭되지 않은 경우 기본 프롬프트 (한국 배경)
   if (matchedDetails.length === 0) {
-    parts.push('clean modern fitness interior');
-    parts.push('professional gym atmosphere');
-    parts.push('well-organized workout space');
+    parts.push('clean modern Korean fitness interior');
+    parts.push('professional Korean gym atmosphere');
+    parts.push('well-organized Korean workout space');
   }
 
-  // 6. 공통 마무리 품질 태그
-  parts.push('realistic');
+  // 7. 공통 마무리 품질 태그 (한국인 강조)
+  parts.push('realistic Korean appearance');
+  parts.push('beautiful Korean features');
   parts.push('detailed');
   parts.push('8k resolution');
   parts.push('commercial photography style');
+  parts.push('NOT western, NOT caucasian');
 
   return parts.join(', ');
 }
