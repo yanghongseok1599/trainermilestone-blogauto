@@ -445,6 +445,7 @@ export function generate333Prompt(state: AppState): string {
 - 타겟고객: ${state.targetAudience || '미지정'}
 - 핵심차별점: ${state.uniquePoint || '미지정'}
 - 속성정보: ${JSON.stringify(state.attributes, null, 2)}
+${state.customTitle ? `- 지정 제목: ${state.customTitle}` : '- 지정 제목: 없음 (AI가 제목 후보 생성)'}
 ${personaInfo}${targetInfo}
 ${imageAnalyses ? `\n## 업로드된 이미지 분석 결과 (반드시 본문에 반영)\n${imageAnalyses}` : ''}
 
@@ -600,10 +601,13 @@ FIRE 요소들을 자연스러운 문장으로 녹여서 작성하세요.
 
 ## 출력 형식 (검색 의도에 맞게 섹션 구성 조정 가능)
 
-【제목 후보】
+${state.customTitle ? `【제목】
+${state.customTitle}
+
+(위의 지정된 제목을 그대로 사용합니다. 제목을 변경하지 마세요.)` : `【제목 후보】
 1. (제목1 - 메인키워드 + 구체적 수치/결과)
 2. (제목2 - 호기심 유발형)
-3. (제목3 - 명확한 이득 제시형)
+3. (제목3 - 명확한 이득 제시형)`}
 
 ────────────────────────────────
 

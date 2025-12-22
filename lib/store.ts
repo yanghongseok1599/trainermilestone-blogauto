@@ -39,6 +39,7 @@ const initialState = {
   searchIntent: 'location' as SearchIntent,
   writerPersona: '',
   targetReader: '',
+  customTitle: '',
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -134,6 +135,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   setWriterPersona: (persona) => set({ writerPersona: persona }),
   setTargetReader: (target) => set({ targetReader: target }),
+
+  setCustomTitle: (title) => set({ customTitle: title }),
 
   reset: () => set(initialState),
 }));

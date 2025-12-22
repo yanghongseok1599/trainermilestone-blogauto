@@ -357,6 +357,25 @@ export function StepGenerate() {
           </div>
         </div>
 
+        {/* Custom Title Input */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+            <Edit3 className="w-4 h-4" />
+            제목 직접 입력 (선택)
+          </h3>
+          <div className="space-y-2">
+            <Input
+              value={store.customTitle}
+              onChange={(e) => store.setCustomTitle(e.target.value)}
+              placeholder="예: 강남역 헬스장 가격 비교, 3개월 다녀본 솔직 후기"
+              className="h-12 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-base"
+            />
+            <p className="text-xs text-[#9ca3af]">
+              원하는 제목을 직접 입력하면 해당 제목으로 글이 생성됩니다. 비워두면 AI가 제목을 추천합니다.
+            </p>
+          </div>
+        </div>
+
         {/* Keyword Editing Section */}
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">

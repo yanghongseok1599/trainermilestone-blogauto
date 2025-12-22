@@ -136,6 +136,10 @@ export interface AppState {
   setWriterPersona: (persona: string) => void;
   setTargetReader: (target: string) => void;
 
+  // 커스텀 제목
+  customTitle: string;
+  setCustomTitle: (title: string) => void;
+
   // 리셋
   reset: () => void;
 }
