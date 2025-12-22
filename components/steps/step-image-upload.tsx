@@ -16,11 +16,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTriangle, Info } from 'lucide-react';
+import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTriangle, Info, Edit3, FileText } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 export function StepImageUpload() {
-  const { images, apiProvider, apiKey, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCurrentStep } = useAppStore();
+  const { images, apiProvider, apiKey, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customTitle, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCustomTitle, setCurrentStep } = useAppStore();
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
@@ -140,38 +141,70 @@ export function StepImageUpload() {
         </div>
         <CardDescription className="text-base">업로드된 이미지를 AI가 분석하여 문맥 일치도를 자동으로 맞춰드립니다</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Upload Zone */}
-        <div
-          className={cn(
-            'relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-300',
-            isDragging
-              ? 'border-[#f72c5b] bg-[#f72c5b]/10'
-              : 'border-[#eeeeee] hover:border-[#eeeeee] bg-[#f9fafb]/30'
-          )}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => document.getElementById('fileInput')?.click()}
-        >
-          <input
-            id="fileInput"
-            type="file"
-            multiple
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => e.target.files && handleFiles(e.target.files)}
-          />
-          <div className="flex flex-col items-center gap-3">
-            <div className={cn(
-              'w-16 h-16 rounded-2xl flex items-center justify-center transition-colors',
-              isDragging ? 'bg-[#f72c5b]/20' : 'bg-[#eeeeee]/50'
-            )}>
-              <Upload className={cn('w-8 h-8', isDragging ? 'text-[#f72c5b]' : 'text-[#6b7280]')} />
+
+      {/* Custom Title Input Section - 이미지 없이 제목만으로 글 생성 가능 */}
+      <div className="px-6 pb-4">
+        <div className="bg-gradient-to-r from-[#f72c5b]/5 to-[#f7a600]/5 border border-[#f72c5b]/20 rounded-xl p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-[#f72c5b]/10 text-[#f72c5b]">
+              <FileText className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-medium text-lg">클릭하거나 이미지를 드래그하세요</p>
-              <p className="text-sm text-muted-foreground mt-1">시설, 운동, 트레이너, 회원 사진 등</p>
+              <h3 className="text-sm font-semibold text-[#111111]">제목 직접 입력</h3>
+              <p className="text-xs text-[#6b7280]">이미지 없이 제목만으로도 글 생성이 가능합니다</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Input
+              value={customTitle}
+              onChange={(e) => setCustomTitle(e.target.value)}
+              placeholder="예: 강남역 헬스장 가격 비교, 3개월 다녀본 솔직 후기"
+              className="h-12 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-base"
+            />
+            <p className="text-xs text-[#9ca3af]">
+              원하는 제목을 직접 입력하면 해당 제목으로 글이 생성됩니다. 비워두면 AI가 제목을 추천합니다.
+            </p>
+          </div>
+        </div>
+      </div>
+      <CardContent className="space-y-6">
+        {/* Upload Zone - Optional */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+            <ImageIcon className="w-4 h-4" />
+            이미지 업로드 <span className="text-xs text-[#9ca3af]">(선택사항)</span>
+          </p>
+          <div
+            className={cn(
+              'relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300',
+              isDragging
+                ? 'border-[#f72c5b] bg-[#f72c5b]/10'
+                : 'border-[#eeeeee] hover:border-[#eeeeee] bg-[#f9fafb]/30'
+            )}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => document.getElementById('fileInput')?.click()}
+          >
+            <input
+              id="fileInput"
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => e.target.files && handleFiles(e.target.files)}
+            />
+            <div className="flex flex-col items-center gap-3">
+              <div className={cn(
+                'w-14 h-14 rounded-2xl flex items-center justify-center transition-colors',
+                isDragging ? 'bg-[#f72c5b]/20' : 'bg-[#eeeeee]/50'
+              )}>
+                <Upload className={cn('w-7 h-7', isDragging ? 'text-[#f72c5b]' : 'text-[#6b7280]')} />
+              </div>
+              <div>
+                <p className="font-medium text-base">클릭하거나 이미지를 드래그하세요</p>
+                <p className="text-sm text-muted-foreground mt-1">시설, 운동, 트레이너, 회원 사진 등</p>
+              </div>
             </div>
           </div>
         </div>
