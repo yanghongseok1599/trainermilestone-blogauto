@@ -341,123 +341,124 @@ export function CardGenerator() {
   const drawPriceCard = (ctx: CanvasRenderingContext2D, theme: typeof THEMES.default) => {
     ctx.textAlign = 'center';
 
-    // 상단 제목 - "가격 안내"
-    ctx.font = 'bold 72px sans-serif';
-    ctx.fillStyle = theme.text;
-    ctx.fillText(customText['priceTitle'] || '가격 안내', 540, 120);
-
-    // 업체명 바 배경
     const displayTitle = truncateText(customText['title'] || extractedInfo.businessName || businessName || '업체명', 20);
 
-    // 상단 업체명 바
-    ctx.fillStyle = theme.cardBg;
-    ctx.beginPath();
-    ctx.roundRect(100, 160, 880, 70, 0);
-    ctx.fill();
+    // 상단 제목 - "가격 안내"
+    ctx.font = 'bold 64px sans-serif';
+    ctx.fillStyle = theme.text;
+    ctx.fillText(customText['priceTitle'] || '가격 안내', 540, 100);
 
-    // 상단 라인
+    // 상단 업체명 바
     ctx.strokeStyle = theme.lineColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(100, 160);
-    ctx.lineTo(980, 160);
+    ctx.moveTo(100, 140);
+    ctx.lineTo(980, 140);
     ctx.stroke();
 
-    // 하단 라인
-    ctx.beginPath();
-    ctx.moveTo(100, 230);
-    ctx.lineTo(980, 230);
-    ctx.stroke();
-
-    // 업체명 텍스트
-    ctx.font = '32px sans-serif';
+    ctx.font = '28px sans-serif';
     ctx.fillStyle = theme.accent;
-    ctx.letterSpacing = '8px';
-    ctx.fillText(displayTitle, 540, 205);
+    ctx.fillText(displayTitle, 540, 185);
 
-    // 가격 항목들
-    const priceItems = extractedInfo.priceItems.length > 0 && !customText['priceValue']
+    ctx.beginPath();
+    ctx.moveTo(100, 210);
+    ctx.lineTo(980, 210);
+    ctx.stroke();
+
+    // 테이블 헤더
+    const headerY = 270;
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillStyle = theme.textSecondary;
+    ctx.textAlign = 'left';
+    ctx.fillText('기간', 150, headerY);
+    ctx.textAlign = 'center';
+    ctx.fillText('정가', 540, headerY);
+    ctx.textAlign = 'right';
+    ctx.fillText('할인가', 930, headerY);
+
+    // 헤더 아래 선
+    ctx.strokeStyle = theme.lineColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(120, headerY + 20);
+    ctx.lineTo(960, headerY + 20);
+    ctx.stroke();
+
+    // 가격 항목들 - 기본 개월별 가격표
+    let priceItems = extractedInfo.priceItems.length > 0 && !customText['priceValue']
       ? extractedInfo.priceItems.slice(0, 5)
       : [];
 
-    if (priceItems.length > 0) {
-      const startY = 280;
-      const itemHeight = 120;
+    // 가격 항목이 없으면 기본 개월별 템플릿 사용
+    if (priceItems.length === 0) {
+      const basePrice = customText['priceValue'] || extractedInfo.price || attributes['가격'] || '';
+      const numPrice = parseInt(basePrice.replace(/[^0-9]/g, '')) || 100000;
 
-      priceItems.forEach((item, idx) => {
-        const y = startY + idx * itemHeight;
-
-        // 구분선
-        if (idx > 0) {
-          ctx.strokeStyle = theme.lineColor;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(150, y - 10);
-          ctx.lineTo(930, y - 10);
-          ctx.stroke();
-        }
-
-        // 항목명 (왼쪽)
-        ctx.textAlign = 'left';
-        ctx.font = '36px sans-serif';
-        ctx.fillStyle = theme.text;
-        ctx.fillText(truncateText(item.label, 12), 150, y + 50);
-
-        // 원가 (취소선) - 중앙
-        const originalPrice = item.originalPrice || (parseInt(item.value.replace(/[^0-9]/g, '')) * 1.1).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원';
-        ctx.textAlign = 'center';
-        ctx.font = '28px sans-serif';
-        ctx.fillStyle = theme.textSecondary;
-        const originalX = 650;
-        const originalWidth = ctx.measureText(originalPrice).width;
-        ctx.fillText(originalPrice, originalX, y + 50);
-
-        // 취소선
-        ctx.strokeStyle = theme.textSecondary;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(originalX - originalWidth / 2 - 5, y + 45);
-        ctx.lineTo(originalX + originalWidth / 2 + 5, y + 45);
-        ctx.stroke();
-
-        // 할인가 (오른쪽)
-        ctx.textAlign = 'right';
-        ctx.font = 'bold 44px sans-serif';
-        ctx.fillStyle = theme.text;
-        ctx.fillText(truncateText(item.value, 12), 930, y + 55);
-      });
-
-    } else {
-      // 단일 가격 또는 기본 표시
-      const displayPrice = customText['priceValue'] || extractedInfo.price || attributes['가격'] || '상담 후 결정';
-
-      // 가격 박스
-      ctx.fillStyle = theme.cardBg;
-      ctx.beginPath();
-      ctx.roundRect(200, 350, 680, 200, 20);
-      ctx.fill();
-
-      ctx.strokeStyle = theme.lineColor;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(200, 350, 680, 200, 20);
-      ctx.stroke();
-
-      // 가격 텍스트
-      ctx.font = 'bold 64px sans-serif';
-      ctx.fillStyle = theme.text;
-      ctx.textAlign = 'center';
-      ctx.fillText(truncateText(displayPrice, 15), 540, 475);
-
-      // 안내 문구
-      ctx.font = '28px sans-serif';
-      ctx.fillStyle = theme.textSecondary;
-      ctx.fillText(truncateText(customText['priceNote'] || '상세 가격은 방문/전화 상담 시 안내드립니다.', 35), 540, 620);
+      priceItems = [
+        { label: '1개월', value: `${Math.round(numPrice).toLocaleString()}원`, originalPrice: `${Math.round(numPrice * 1.2).toLocaleString()}원` },
+        { label: '3개월', value: `${Math.round(numPrice * 2.7).toLocaleString()}원`, originalPrice: `${Math.round(numPrice * 3.6).toLocaleString()}원` },
+        { label: '6개월', value: `${Math.round(numPrice * 5).toLocaleString()}원`, originalPrice: `${Math.round(numPrice * 7.2).toLocaleString()}원` },
+        { label: '12개월', value: `${Math.round(numPrice * 9).toLocaleString()}원`, originalPrice: `${Math.round(numPrice * 14.4).toLocaleString()}원` },
+      ];
     }
 
-    // 하단 업체명
+    const startY = 330;
+    const itemHeight = 130;
+
+    priceItems.forEach((item, idx) => {
+      const y = startY + idx * itemHeight;
+
+      // 행 배경 (짝수 행)
+      if (idx % 2 === 0) {
+        ctx.fillStyle = theme.accentLight;
+        ctx.fillRect(120, y - 40, 840, itemHeight - 10);
+      }
+
+      // 기간 (왼쪽)
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.fillStyle = theme.text;
+      ctx.fillText(truncateText(item.label, 10), 150, y + 25);
+
+      // 정가 (취소선) - 중앙
+      const originalPrice = item.originalPrice || `${Math.round(parseInt(item.value.replace(/[^0-9]/g, '')) * 1.2).toLocaleString()}원`;
+      ctx.textAlign = 'center';
+      ctx.font = '30px sans-serif';
+      ctx.fillStyle = theme.textSecondary;
+      const originalWidth = ctx.measureText(originalPrice).width;
+      ctx.fillText(originalPrice, 540, y + 25);
+
+      // 취소선
+      ctx.strokeStyle = theme.textSecondary;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(540 - originalWidth / 2 - 5, y + 20);
+      ctx.lineTo(540 + originalWidth / 2 + 5, y + 20);
+      ctx.stroke();
+
+      // 할인가 (오른쪽) - 강조
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 40px sans-serif';
+      ctx.fillStyle = theme.accent;
+      ctx.fillText(truncateText(item.value, 12), 930, y + 28);
+    });
+
+    // 하단 안내 문구
+    const footerY = startY + priceItems.length * itemHeight + 30;
     ctx.textAlign = 'center';
-    ctx.font = '28px sans-serif';
+    ctx.font = '24px sans-serif';
+    ctx.fillStyle = theme.textSecondary;
+    ctx.fillText(customText['priceNote'] || '※ 상세 가격은 방문/전화 상담 시 안내드립니다', 540, footerY);
+
+    // 하단 업체명
+    ctx.strokeStyle = theme.lineColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(100, 960);
+    ctx.lineTo(980, 960);
+    ctx.stroke();
+
+    ctx.font = '26px sans-serif';
     ctx.fillStyle = theme.accent;
     ctx.fillText(displayTitle, 540, 1000);
   };
