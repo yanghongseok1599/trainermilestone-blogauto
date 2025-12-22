@@ -12,7 +12,7 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://blogbooster.kr'),
+  metadataBase: new URL('https://trainermilestone-blogbooster.vercel.app'),
   title: {
     default: 'BlogBooster - 피트니스 블로그 자동화 시스템',
     template: '%s | BlogBooster',
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     '피트니스 마케팅',
     '헬스장 홍보',
   ],
-  authors: [{ name: 'BlogBooster', url: 'https://blogbooster.kr' }],
+  authors: [{ name: 'BlogBooster', url: 'https://trainermilestone-blogbooster.vercel.app' }],
   creator: 'BlogBooster',
   publisher: 'BlogBooster',
   formatDetection: {
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'ko_KR',
-    url: 'https://blogbooster.kr',
+    url: 'https://trainermilestone-blogbooster.vercel.app',
     siteName: 'BlogBooster',
     title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
     description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
@@ -87,7 +87,7 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   alternates: {
-    canonical: 'https://blogbooster.kr',
+    canonical: 'https://trainermilestone-blogbooster.vercel.app',
   },
   category: 'technology',
   verification: {
