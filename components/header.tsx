@@ -16,7 +16,7 @@ export function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center">
             <Image
-              src="/logo.png"
+              src="/제목을 입력해주세요. (13).png"
               alt="BlogBooster"
               width={140}
               height={40}
