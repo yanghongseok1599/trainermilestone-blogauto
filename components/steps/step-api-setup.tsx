@@ -27,7 +27,7 @@ export function StepApiSetup() {
       setIsLoading(true);
       try {
         if (user) {
-          // Load from Firestore
+          // 로그인 사용자: Firestore에서 API 키와 프리셋 불러옴
           const [firestorePresets, apiSettings] = await Promise.all([
             loadPresets(user.uid),
             loadApiSettings(user.uid),
@@ -38,13 +38,12 @@ export function StepApiSetup() {
             setApiKey(apiSettings.apiKey);
           }
         } else {
-          // Load from localStorage (비로그인 사용자)
+          // 비로그인 사용자: localStorage에서 불러옴
           const savedPresets = localStorage.getItem('blogbooster_presets');
           if (savedPresets) {
             setPresets(JSON.parse(savedPresets));
           }
 
-          // API 키 로드 (localStorage)
           const savedApiKey = localStorage.getItem('blogbooster_api_key');
           const savedApiProvider = localStorage.getItem('blogbooster_api_provider');
 
@@ -69,7 +68,7 @@ export function StepApiSetup() {
       return;
     }
 
-    // Save API settings to Firestore if logged in
+    // 로그인 사용자: Firestore에 API 설정 저장 (어느 PC에서든 자동 불러오기)
     if (user) {
       try {
         await saveApiSettings(user.uid, apiProvider, apiKey);
@@ -191,8 +190,8 @@ export function StepApiSetup() {
             </p>
             {apiKey && (
               <span className="text-xs text-[#10b981] flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                자동 저장됨
+                {user ? <Cloud className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+                {user ? '클라우드 저장' : '이 기기에만 저장됨'}
               </span>
             )}
           </div>
