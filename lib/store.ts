@@ -40,12 +40,23 @@ const initialState = {
   writerPersona: '',
   targetReader: '',
   customTitle: '',
+  liteMode: true, // 기본값: 라이트 모드 (무료 API용)
 };
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   ...initialState,
 
   setCurrentStep: (step) => set({ currentStep: step }),
+
+  // 클라이언트에서 저장된 값 로드
+  hydrate: () => {
+    if (typeof window !== 'undefined') {
+      const savedApiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+      const savedProvider = localStorage.getItem(API_PROVIDER_STORAGE_KEY);
+      const apiProvider = (savedProvider === 'openai' || savedProvider === 'gemini') ? savedProvider : 'gemini';
+      set({ apiKey: savedApiKey, apiProvider });
+    }
+  },
   setApiProvider: (provider) => {
     // localStorage에 저장
     if (typeof window !== 'undefined') {
@@ -137,6 +148,8 @@ export const useAppStore = create<AppState>((set) => ({
   setTargetReader: (target) => set({ targetReader: target }),
 
   setCustomTitle: (title) => set({ customTitle: title }),
+
+  setLiteMode: (mode) => set({ liteMode: mode }),
 
   reset: () => set(initialState),
 }));

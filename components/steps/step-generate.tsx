@@ -6,14 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, Wand2, ArrowLeft, Check, Sparkles, Search, BookOpen, CreditCard, Navigation, MapPin, Star, Edit3, User, Target } from 'lucide-react';
+import { Loader2, Wand2, ArrowLeft, Check, Sparkles, Search, BookOpen, CreditCard, Navigation, MapPin, Star, Edit3, User, Target, AlertTriangle, ExternalLink, Zap, FileText } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FitnessCategory } from '@/types';
-import { generate333Prompt } from '@/lib/prompts';
+import { generate333Prompt, generate333PromptLite } from '@/lib/prompts';
 import { SearchIntent, SEARCH_INTENT_INFO, ImageData } from '@/types';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
+import { generateRagContext, generateSimpleRagContext } from '@/lib/embedding-service';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 // Lucide 아이콘 매핑
 const INTENT_ICONS = {
@@ -260,7 +264,9 @@ function getPersonaTargetRecommendation(category: FitnessCategory, targetAudienc
 
 export function StepGenerate() {
   const store = useAppStore();
+  const { user } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showQuotaError, setShowQuotaError] = useState(false);
 
   // 이미지 분석 기반 추천 의도 계산
   const recommendation = useMemo(() => {
@@ -274,11 +280,44 @@ export function StepGenerate() {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    toast.info('블로그 글을 생성하고 있습니다...');
+    toast.info(store.liteMode ? '라이트 모드로 빠르게 생성 중...' : '블로그 글을 생성하고 있습니다...');
 
     try {
-      const prompt = generate333Prompt(store);
+      // 라이트 모드: 약 70% 토큰 절약
+      const prompt = store.liteMode ? generate333PromptLite(store) : generate333Prompt(store);
       const endpoint = store.apiProvider === 'gemini' ? '/api/gemini/generate' : '/api/openai/generate';
+
+      // 고급 RAG 컨텍스트 생성 (로그인 사용자만, 라이트 모드에서는 간소화)
+      let ragContext = '';
+      if (user && !store.liteMode) {
+        // 라이트 모드에서는 RAG 스킵 (토큰 절약)
+        try {
+          // Supabase가 설정되어 있고 API 키가 있으면 고급 RAG (벡터 검색) 사용
+          if (isSupabaseConfigured() && store.apiKey) {
+            console.log('Using advanced RAG with Supabase vector search...');
+            ragContext = await generateRagContext(
+              user.uid,
+              store.mainKeyword,
+              store.category,
+              store.apiKey,
+              store.apiProvider
+            );
+          } else {
+            // Supabase 미설정 시 단순 RAG (Firebase 최근 글만)
+            console.log('Using simple RAG with Firebase...');
+            ragContext = await generateSimpleRagContext(user.uid);
+          }
+
+          if (ragContext) {
+            console.log('RAG context generated successfully');
+          }
+        } catch (ragError) {
+          console.error('RAG context generation failed:', ragError);
+          // RAG 실패해도 계속 진행
+        }
+      } else if (store.liteMode) {
+        console.log('Lite mode: Skipping RAG context to save tokens');
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -286,6 +325,8 @@ export function StepGenerate() {
         body: JSON.stringify({
           apiKey: store.apiKey,
           prompt,
+          ragContext, // RAG 컨텍스트 추가
+          liteMode: store.liteMode, // 라이트 모드 전달
         }),
       });
 
@@ -301,13 +342,69 @@ export function StepGenerate() {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다';
-      toast.error('생성 실패: ' + errorMessage);
+
+      // 할당량 초과 에러 감지
+      if (errorMessage.toLowerCase().includes('할당량') || errorMessage.toLowerCase().includes('quota')) {
+        setShowQuotaError(true);
+      } else {
+        toast.error('생성 실패: ' + errorMessage);
+      }
     }
 
     setIsGenerating(false);
   };
 
   return (
+    <>
+    {/* API 할당량 초과 알림 다이얼로그 */}
+    <Dialog open={showQuotaError} onOpenChange={setShowQuotaError}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 rounded-full bg-[#f7a600]/10 flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-[#f7a600]" />
+            </div>
+            <DialogTitle className="text-xl">API 할당량 초과</DialogTitle>
+          </div>
+          <DialogDescription className="text-base text-[#6b7280]">
+            무료 API 할당량이 초과되었습니다
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="bg-[#f7a600]/10 rounded-lg p-4 border border-[#f7a600]/30">
+            <h4 className="font-semibold text-[#111111] mb-2">해결 방법</h4>
+            <ul className="text-sm text-[#6b7280] space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="text-[#f7a600] font-bold">1.</span>
+                <span><strong>잠시 후 재시도</strong> - 약 1분 후 다시 시도해주세요</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#f7a600] font-bold">2.</span>
+                <span><strong>새 API 키 발급</strong> - 다른 계정으로 API 키를 발급받으세요</span>
+              </li>
+            </ul>
+          </div>
+
+          <Button
+            className="w-full h-12 bg-[#4285f4] hover:bg-[#3367d6] text-white"
+            onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Google AI Studio에서 새 API 키 발급
+          </Button>
+
+          <Button
+            variant="outline"
+            className="w-full h-10 border-[#eeeeee]"
+            onClick={() => setShowQuotaError(false)}
+          >
+            닫기
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <Card className="border border-[#eeeeee] shadow-lg bg-white">
       <CardHeader className="space-y-1 pb-6">
         <div className="flex items-center gap-2">
@@ -355,6 +452,58 @@ export function StepGenerate() {
               <p className="font-medium text-[#111111]">{store.images.length}장 업로드</p>
             </div>
           </div>
+        </div>
+
+        {/* Lite Mode Toggle */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            생성 모드 선택
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => store.setLiteMode(true)}
+              className={cn(
+                'p-4 rounded-xl border-2 text-left transition-all duration-200',
+                store.liteMode
+                  ? 'border-[#10b981] bg-[#10b981]/5'
+                  : 'border-[#eeeeee] bg-white hover:border-[#10b981]/50'
+              )}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className={cn('w-5 h-5', store.liteMode ? 'text-[#10b981]' : 'text-[#6b7280]')} />
+                <span className={cn('font-semibold', store.liteMode ? 'text-[#10b981]' : 'text-[#111111]')}>
+                  라이트 모드
+                </span>
+                <Badge className="bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30 text-[10px]">추천</Badge>
+              </div>
+              <p className="text-xs text-[#6b7280] mb-1">무료 API용 최적화</p>
+              <p className="text-[10px] text-[#9ca3af]">토큰 70% 절약, 빠른 생성</p>
+            </button>
+            <button
+              onClick={() => store.setLiteMode(false)}
+              className={cn(
+                'p-4 rounded-xl border-2 text-left transition-all duration-200',
+                !store.liteMode
+                  ? 'border-[#6366f1] bg-[#6366f1]/5'
+                  : 'border-[#eeeeee] bg-white hover:border-[#6366f1]/50'
+              )}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className={cn('w-5 h-5', !store.liteMode ? 'text-[#6366f1]' : 'text-[#6b7280]')} />
+                <span className={cn('font-semibold', !store.liteMode ? 'text-[#6366f1]' : 'text-[#111111]')}>
+                  프로 모드
+                </span>
+              </div>
+              <p className="text-xs text-[#6b7280] mb-1">상세한 가이드라인 적용</p>
+              <p className="text-[10px] text-[#9ca3af]">유료 API 또는 높은 한도 필요</p>
+            </button>
+          </div>
+          {store.liteMode && (
+            <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-lg p-3 text-xs text-[#047857]">
+              라이트 모드는 프롬프트를 최적화하여 Gemini 무료 API로도 안정적으로 생성할 수 있습니다.
+            </div>
+          )}
         </div>
 
         {/* Custom Title Input */}
@@ -633,5 +782,6 @@ export function StepGenerate() {
         </div>
       </CardContent>
     </Card>
+    </>
   );
 }

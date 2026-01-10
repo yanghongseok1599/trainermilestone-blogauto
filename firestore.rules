@@ -84,6 +84,20 @@ service cloud.firestore {
                         request.resource.data.keys().hasAll(['currentPlan']) &&
                         isValidPlan(request.resource.data.currentPlan);
       }
+
+      // 저장된 글 (마이페이지) - 본인만 접근
+      match /posts/{postId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         request.resource.data.keys().hasAll(['id', 'title', 'content', 'postType']);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // SEO 발행 스케줄 - 본인만 접근
+      match /seoSchedule/{scheduleId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ==================== Payments Collection ====================

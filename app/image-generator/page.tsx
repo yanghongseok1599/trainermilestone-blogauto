@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,7 +35,8 @@ interface ImageWithGeneration extends ParsedImagePrompt {
   error?: string;
 }
 
-export default function ImageGeneratorPage() {
+function ImageGeneratorContent() {
+  const searchParams = useSearchParams();
   const { extractedImagePrompts, category: storeCategory, setExtractedImagePrompts, apiKey: storeApiKey, apiProvider: storeApiProvider } = useAppStore();
   const [inputPrompt, setInputPrompt] = useState('');
   const [category, setCategory] = useState('');
@@ -44,8 +46,23 @@ export default function ImageGeneratorPage() {
   const [selectedModel, setSelectedModel] = useState('gpt-image-1');
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [hasLoadedFromStore, setHasLoadedFromStore] = useState(false);
+  const [hasLoadedFromUrl, setHasLoadedFromUrl] = useState(false);
 
   const currentModels = apiProvider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
+
+  // URL 파라미터에서 프롬프트 로드 (리믹스 기능)
+  useEffect(() => {
+    if (hasLoadedFromUrl) return;
+
+    const promptFromUrl = searchParams.get('prompt');
+    if (promptFromUrl) {
+      const decodedPrompt = decodeURIComponent(promptFromUrl);
+      // 프롬프트를 [이미지: ] 형식으로 변환
+      setInputPrompt(`[이미지: ${decodedPrompt}]`);
+      setHasLoadedFromUrl(true);
+      toast.success('프롬프트 모음에서 프롬프트를 가져왔습니다. 분석 버튼을 클릭하세요!');
+    }
+  }, [searchParams, hasLoadedFromUrl]);
 
   // 저장된 API 키 로드
   useEffect(() => {
@@ -722,5 +739,17 @@ export default function ImageGeneratorPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ImageGeneratorPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#f72c5b]"></div>
+      </div>
+    }>
+      <ImageGeneratorContent />
+    </Suspense>
   );
 }

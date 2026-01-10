@@ -193,6 +193,7 @@ export function CardGenerator() {
   const [customText, setCustomText] = useState<Record<string, string>>({});
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [isExtracted, setIsExtracted] = useState(false);
+  const [isCardEnabled, setIsCardEnabled] = useState(false); // 카드 생성 활성화 여부
   const { businessName, category, attributes, apiKey, apiProvider, generatedContent } = useAppStore();
 
   // 블로그 본문에서 정보 추출
@@ -200,9 +201,9 @@ export function CardGenerator() {
     return extractInfoFromContent(generatedContent);
   }, [generatedContent]);
 
-  // 본문에서 추출한 정보로 초기화
+  // 본문에서 추출한 정보로 초기화 (카드 생성 활성화 시에만)
   useEffect(() => {
-    if (generatedContent && !isExtracted) {
+    if (isCardEnabled && generatedContent && !isExtracted) {
       const info = extractedInfo;
       if (info.businessName || info.location || info.price) {
         setCustomText({
@@ -217,22 +218,26 @@ export function CardGenerator() {
         setIsExtracted(true);
       }
     }
-  }, [generatedContent, extractedInfo, isExtracted, businessName, attributes]);
+  }, [isCardEnabled, generatedContent, extractedInfo, isExtracted, businessName, attributes]);
 
-  // 메인 카드 생성
+  // 메인 카드 생성 (카드 생성 활성화 시에만)
   useEffect(() => {
-    generateCard(canvasRef.current, cardTheme, false);
-  }, [cardType, cardTheme, businessName, attributes, customText, extractedInfo]);
+    if (isCardEnabled) {
+      generateCard(canvasRef.current, cardTheme, false);
+    }
+  }, [isCardEnabled, cardType, cardTheme, businessName, attributes, customText, extractedInfo]);
 
-  // 미리보기 카드 생성
+  // 미리보기 카드 생성 (카드 생성 활성화 시에만)
   useEffect(() => {
-    const themes: CardTheme[] = ['default', 'dark', 'beige', 'minimal'];
-    themes.forEach((theme, idx) => {
-      if (previewRefs.current[idx]) {
-        generateCard(previewRefs.current[idx], theme, true);
-      }
-    });
-  }, [cardType, businessName, attributes, customText, extractedInfo]);
+    if (isCardEnabled) {
+      const themes: CardTheme[] = ['default', 'dark', 'beige', 'minimal'];
+      themes.forEach((theme, idx) => {
+        if (previewRefs.current[idx]) {
+          generateCard(previewRefs.current[idx], theme, true);
+        }
+      });
+    }
+  }, [isCardEnabled, cardType, businessName, attributes, customText, extractedInfo]);
 
   const generateCard = (canvas: HTMLCanvasElement | null, theme: CardTheme, isPreview: boolean) => {
     if (!canvas) return;
@@ -638,6 +643,12 @@ ${cardType === 'info' ? `{
 
   const themes: CardTheme[] = ['default', 'dark', 'beige', 'minimal'];
 
+  // 카드 생성 활성화 함수
+  const enableCardGeneration = () => {
+    setIsCardEnabled(true);
+    toast.success('카드 생성이 활성화되었습니다');
+  };
+
   return (
     <div className="border-t border-[#eeeeee] pt-6">
       <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
@@ -645,26 +656,49 @@ ${cardType === 'info' ? `{
         요약 카드 이미지 생성
       </h3>
 
-      {/* 본문 연동 안내 */}
-      {generatedContent && (
-        <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-lg p-3 mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#10b981]" />
-            <span className="text-xs text-[#059669]">
-              블로그 본문에서 정보를 추출하여 카드를 생성합니다
-            </span>
+      {/* 카드 생성 전 - 생성 여부 확인 */}
+      {!isCardEnabled && (
+        <div className="bg-[#f9fafb] rounded-xl p-6 border border-[#eeeeee] text-center">
+          <div className="w-16 h-16 rounded-full bg-[#f72c5b]/10 flex items-center justify-center mx-auto mb-4">
+            <Image className="w-8 h-8 text-[#f72c5b]" />
           </div>
+          <h4 className="font-semibold text-[#111111] mb-2">요약 카드를 생성하시겠습니까?</h4>
+          <p className="text-sm text-[#6b7280] mb-4">
+            블로그 본문에서 정보를 추출하여<br />업체 정보, 가격표, 체크리스트 카드를 만들 수 있습니다.
+          </p>
           <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-[#10b981] hover:bg-[#10b981]/10"
-            onClick={reExtractFromContent}
+            className="h-11 px-6 bg-[#f72c5b] hover:bg-[#d91a4a] text-white"
+            onClick={enableCardGeneration}
           >
-            <RotateCcw className="w-3 h-3 mr-1" />
-            다시 추출
+            <Sparkles className="w-4 h-4 mr-2" />
+            카드 생성하기
           </Button>
         </div>
       )}
+
+      {/* 카드 생성 활성화 후 */}
+      {isCardEnabled && (
+        <>
+          {/* 본문 연동 안내 */}
+          {generatedContent && (
+            <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-lg p-3 mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#10b981]" />
+                <span className="text-xs text-[#059669]">
+                  블로그 본문에서 정보를 추출하여 카드를 생성합니다
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-[#10b981] hover:bg-[#10b981]/10"
+                onClick={reExtractFromContent}
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                다시 추출
+              </Button>
+            </div>
+          )}
 
       {/* 카드 타입 선택 */}
       <div className="flex gap-2 mb-4">
@@ -782,6 +816,8 @@ ${cardType === 'info' ? `{
         <Download className="w-4 h-4 mr-2" />
         카드 이미지 다운로드
       </Button>
+        </>
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Building2, Target, Lightbulb, ArrowRight, ArrowLeft, Wand2, Search, Loader2, MapPin, Plus, X, Save, Download, ChevronDown, ChevronRight, Pencil, Check, Trash2 } from 'lucide-react';
+import { Building2, Target, Lightbulb, ArrowRight, ArrowLeft, Search, Loader2, MapPin, Plus, X, Save, Download, ChevronDown, ChevronRight, Pencil, Check, Trash2 } from 'lucide-react';
 
 interface NaverPlaceResult {
   title: string;
@@ -24,7 +24,6 @@ interface SavedBusinessInfo {
   category: string;
   businessName: string;
   mainKeyword: string;
-  subKeywords: string[];
   targetAudience: string;
   uniquePoint: string;
   attributes: Record<string, string>;
@@ -62,7 +61,6 @@ export function StepBusinessInfo() {
     category,
     businessName,
     mainKeyword,
-    subKeywords,
     targetAudience,
     uniquePoint,
     attributes,
@@ -132,7 +130,6 @@ export function StepBusinessInfo() {
       category,
       businessName,
       mainKeyword,
-      subKeywords,
       targetAudience,
       uniquePoint,
       attributes,
@@ -154,7 +151,6 @@ export function StepBusinessInfo() {
       setBusinessInfo({
         businessName: info.businessName,
         mainKeyword: info.mainKeyword,
-        subKeywords: info.subKeywords,
         targetAudience: info.targetAudience,
         uniquePoint: info.uniquePoint,
       });
@@ -295,32 +291,6 @@ export function StepBusinessInfo() {
       return;
     }
     setCurrentStep(2);
-  };
-
-  const handleKeywordSuggest = async () => {
-    if (!mainKeyword.trim()) {
-      toast.error('먼저 메인 키워드를 입력해주세요');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/keywords', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keywords: [mainKeyword] }),
-      });
-      const data = await response.json();
-
-      if (data.results?.[0]?.relatedKeywords) {
-        const related = data.results[0].relatedKeywords;
-        setBusinessInfo({
-          subKeywords: [related[0] || '', related[1] || '', related[2] || ''],
-        });
-        toast.success('키워드를 추천했습니다');
-      }
-    } catch {
-      toast.error('키워드 추천 실패');
-    }
   };
 
   const handleAddAttribute = () => {
@@ -622,37 +592,6 @@ export function StepBusinessInfo() {
               onChange={(e) => setBusinessInfo({ mainKeyword: e.target.value })}
               className="h-11 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
             />
-          </div>
-        </div>
-
-        {/* Sub Keywords */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">보조 키워드 (최대 3개)</Label>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-[#f72c5b] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
-              onClick={handleKeywordSuggest}
-            >
-              <Wand2 className="w-4 h-4 mr-1" />
-              키워드 추천
-            </Button>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[0, 1, 2].map((idx) => (
-              <Input
-                key={idx}
-                placeholder={`보조키워드 ${idx + 1}`}
-                value={subKeywords[idx] || ''}
-                onChange={(e) => {
-                  const newKeywords = [...subKeywords];
-                  newKeywords[idx] = e.target.value;
-                  setBusinessInfo({ subKeywords: newKeywords });
-                }}
-                className="h-11 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
-              />
-            ))}
           </div>
         </div>
 

@@ -5,19 +5,33 @@ import {
   User,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   updateProfile,
+  browserPopupRedirectResolver,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
 
+// 관리자 계정 설정
+const ADMIN_CREDENTIALS = {
+  username: 'ccv5',
+  password: '3412aa',
+};
+
+const ADMIN_SESSION_KEY = 'blogbooster_admin_session';
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isSuperAdmin: boolean; // 시스템 관리자 (ccv5)
   signInWithGoogle: () => Promise<void>;
+  signInWithKakao: () => void;
   signInWithEmail: (email: string, password: string) => Promise<void>;
+  signInAsAdmin: (username: string, password: string) => boolean;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -27,13 +41,44 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
+    // 관리자 세션 확인
+    const adminSession = localStorage.getItem(ADMIN_SESSION_KEY);
+    if (adminSession === 'true') {
+      setIsSuperAdmin(true);
+      // 관리자용 가상 유저 객체 생성
+      const adminUser = {
+        uid: 'admin-ccv5',
+        email: 'admin@blogbooster.kr',
+        displayName: '관리자',
+        photoURL: null,
+      } as User;
+      setUser(adminUser);
+      setLoading(false);
+      return;
+    }
+
     // Skip if auth is not initialized
     if (!auth) {
       setLoading(false);
       return;
     }
+
+    // Handle redirect result (for mobile/popup blocked cases)
+    const handleRedirectResult = async () => {
+      if (!auth) return;
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          await saveUserToFirestore(result.user);
+        }
+      } catch (error) {
+        console.error('Redirect result error:', error);
+      }
+    };
+    handleRedirectResult();
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
@@ -71,11 +116,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Firebase가 초기화되지 않았습니다. .env.local 파일을 확인해주세요.');
     }
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      // Try popup first
+      const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       await saveUserToFirestore(result.user);
-    } catch (error) {
-      console.error('Google sign in error:', error);
-      throw error;
+    } catch (error: unknown) {
+      const firebaseError = error as { code?: string; message?: string };
+      console.error('Google sign in error:', firebaseError);
+
+      // If popup blocked or failed, try redirect
+      if (firebaseError.code === 'auth/popup-blocked' ||
+          firebaseError.code === 'auth/popup-closed-by-user' ||
+          firebaseError.code === 'auth/cancelled-popup-request') {
+        console.log('Popup blocked, trying redirect...');
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+
+      // Provide user-friendly error messages
+      if (firebaseError.code === 'auth/unauthorized-domain') {
+        throw new Error('이 도메인은 Firebase에서 승인되지 않았습니다. Firebase Console > Authentication > Settings > 승인된 도메인에서 도메인을 추가해주세요.');
+      }
+      if (firebaseError.code === 'auth/operation-not-allowed') {
+        throw new Error('Google 로그인이 활성화되지 않았습니다. Firebase Console > Authentication > Sign-in method에서 Google을 활성화해주세요.');
+      }
+      if (firebaseError.code === 'auth/internal-error') {
+        throw new Error('Firebase 인증 오류가 발생했습니다. Firebase Console 설정을 확인해주세요.');
+      }
+
+      throw new Error(firebaseError.message || 'Google 로그인에 실패했습니다.');
     }
   };
 
@@ -90,6 +158,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Email sign in error:', error);
       throw error;
     }
+  };
+
+  // 관리자 로그인 (이메일 형식 불필요)
+  const signInAsAdmin = (username: string, password: string): boolean => {
+    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+      localStorage.setItem(ADMIN_SESSION_KEY, 'true');
+      setIsSuperAdmin(true);
+      // 관리자용 가상 유저 객체 생성
+      const adminUser = {
+        uid: 'admin-ccv5',
+        email: 'admin@blogbooster.kr',
+        displayName: '관리자',
+        photoURL: null,
+      } as User;
+      setUser(adminUser);
+      return true;
+    }
+    return false;
+  };
+
+  // 카카오 로그인
+  const signInWithKakao = () => {
+    const KAKAO_REST_API_KEY = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY;
+    const REDIRECT_URI = typeof window !== 'undefined'
+      ? `${window.location.origin}/api/auth/kakao/callback`
+      : '';
+
+    if (!KAKAO_REST_API_KEY) {
+      throw new Error('카카오 API 키가 설정되지 않았습니다.');
+    }
+
+    const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_REST_API_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code`;
+    window.location.href = kakaoAuthUrl;
   };
 
   const signUpWithEmail = async (email: string, password: string, name: string) => {
@@ -107,7 +208,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    if (!auth) return;
+    // 관리자 세션 클리어
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    setIsSuperAdmin(false);
+
+    if (!auth) {
+      setUser(null);
+      return;
+    }
     try {
       await signOut(auth);
     } catch (error) {
@@ -121,8 +229,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        isSuperAdmin,
         signInWithGoogle,
+        signInWithKakao,
         signInWithEmail,
+        signInAsAdmin,
         signUpWithEmail,
         logout,
       }}

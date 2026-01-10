@@ -63,6 +63,8 @@ export interface Preset {
   uniquePoint: string;
   attributes: Record<string, string>;
   customAttributes?: string[];
+  hiddenAttributes?: string[];
+  attributeLabels?: Record<string, string>;
   createdAt: string | Date;
   updatedAt?: string | Date;
 }
@@ -140,6 +142,13 @@ export interface AppState {
   customTitle: string;
   setCustomTitle: (title: string) => void;
 
+  // 라이트 모드 (토큰 절약)
+  liteMode: boolean;
+  setLiteMode: (mode: boolean) => void;
+
   // 리셋
   reset: () => void;
+
+  // 클라이언트 hydration
+  hydrate: () => void;
 }

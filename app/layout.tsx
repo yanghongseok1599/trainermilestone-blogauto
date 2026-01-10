@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
     images: [
       {
-        url: '/제목을 입력해주세요. (15).png',
+        url: '/3.png',
         width: 1200,
         height: 630,
         alt: 'BlogBooster - 피트니스 블로그 자동화',
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
     description: 'AI 기반 SEO 최적화 블로그 자동 생성',
-    images: ['/제목을 입력해주세요. (15).png'],
+    images: ['/3.png'],
     creator: '@blogbooster',
   },
   robots: {
@@ -78,7 +78,6 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
       { url: '/icon.png', type: 'image/png', sizes: '32x32' },
     ],
     apple: [
@@ -93,7 +92,7 @@ export const metadata: Metadata = {
   verification: {
     google: 'google-site-verification-code',
     other: {
-      'naver-site-verification': 'naver-site-verification-code',
+      'naver-site-verification': '7ac5ded04f31e967be7aa7b6ac67c1f75fa58645',
     },
   },
 };
@@ -105,6 +104,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        <meta name="naver-site-verification" content="7ac5ded04f31e967be7aa7b6ac67c1f75fa58645" />
+      </head>
       <body className={`${notoSansKR.variable} antialiased min-h-screen bg-white`}>
         <AuthProvider>
           <Header />

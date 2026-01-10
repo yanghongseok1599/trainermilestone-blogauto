@@ -32,13 +32,15 @@ export interface Preset {
   businessName: string;
   mainKeyword: string;
   subKeywords: string[];
-  tailKeywords: string[];
+  tailKeywords?: string[];
   targetAudience: string;
   uniquePoint: string;
   attributes: Record<string, string>;
-  customAttributes: string[];
+  customAttributes?: string[];
+  hiddenAttributes?: string[];
+  attributeLabels?: Record<string, string>;
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
 }
 
 // Save business info to Firestore
@@ -110,8 +112,10 @@ export async function loadPresets(userId: string): Promise<Preset[]> {
       uniquePoint: data.uniquePoint,
       attributes: data.attributes || {},
       customAttributes: data.customAttributes || [],
+      hiddenAttributes: data.hiddenAttributes || [],
+      attributeLabels: data.attributeLabels || {},
       createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate(),
     });
   });
 

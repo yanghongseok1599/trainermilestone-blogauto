@@ -665,12 +665,12 @@ ${state.customTitle}
 3. (제목3 - 명확한 이득 제시형)`}
 
 ────────────────────────────────
-
+${(state.searchIntent === 'information' || state.searchIntent === 'transaction') ? `
 【목차】
 (위에서 제시한 "이번 글의 구조"에 맞게 작성)
 
 ────────────────────────────────
-
+` : ''}
 【첫 문단】
 (인사말 없이 바로 시작 - 위에서 제시한 첫 문단 시작 문장 참고)
 
@@ -727,6 +727,29 @@ ${state.businessName}은(는) ${state.mainKeyword} 지역에서
 【】 형식의 섹션 제목만 사용하세요.
 섹션 사이에 ──────────────────────────────── 구분선을 필수로 추가하세요.
 ━━━ 같은 특수문자 구분선은 사용하지 마세요.`;
+}
+
+// 라이트 모드 프롬프트 (토큰 절약 - 약 80% 감소, 무료 API용 최적화)
+export function generate333PromptLite(state: AppState): string {
+  const attrs = Object.entries(state.attributes).slice(0, 5).map(([k, v]) => `${k}:${v}`).join(', ');
+
+  return `네이버 SEO 블로그 작성. 규칙: 마크다운/** 금지, 이모지 금지, 센터 대표자 시점, 【】섹션 제목 사용.
+
+업체: ${state.businessName} (${state.category})
+키워드: ${state.mainKeyword}
+${attrs ? `정보: ${attrs}` : ''}
+${state.customTitle ? `제목: ${state.customTitle}` : ''}
+
+출력형식:
+${state.customTitle ? `【제목】${state.customTitle}` : '【제목】(키워드+수치 조합)'}
+────
+【본문】인사말 없이 핵심부터. 시설/프로그램/가격 소개. [이미지: 설명] 5개 포함.
+────
+【FAQ】Q&A 3개
+────
+【요약】위치/시간/특징 정리
+
+1500자 이상 작성.`;
 }
 
 export function generateModifyPrompt(originalContent: string, userRequest: string): string {

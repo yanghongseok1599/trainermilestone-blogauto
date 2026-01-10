@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth-context';
 import { savePreset as savePresetToFirestore } from '@/lib/firestore-service';
+import { savePost } from '@/lib/post-service';
+import { savePostWithEmbedding } from '@/lib/embedding-service';
+import { PostType, POST_TYPE_INFO } from '@/types/post';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Copy, Download, RefreshCw, Save, FileText, Sparkles, Loader2, Pencil, Image, ExternalLink, ImagePlus, X } from 'lucide-react';
+import { Copy, Download, RefreshCw, Save, FileText, Sparkles, Loader2, Pencil, Image, ExternalLink, ImagePlus, X, CloudUpload, CheckCircle2 } from 'lucide-react';
 import { CardGenerator } from '@/components/card-generator';
 import { generateModifyPrompt } from '@/lib/prompts';
 import { generateEnglishPrompt } from '@/lib/image-prompt-utils';
@@ -24,12 +28,15 @@ import { generateEnglishPrompt } from '@/lib/image-prompt-utils';
 export function StepResult() {
   const store = useAppStore();
   const { user } = useAuth();
-  const { generatedContent, businessName, category, setCurrentStep, reset, setGeneratedContent, apiKey, apiProvider, setExtractedImagePrompts } = store;
+  const { generatedContent, businessName, category, setCurrentStep, reset, setGeneratedContent, apiKey, apiProvider, setExtractedImagePrompts, mainKeyword, searchIntent } = store;
   const [presetName, setPresetName] = useState('');
   const [modifyRequest, setModifyRequest] = useState('');
   const [isModifying, setIsModifying] = useState(false);
   const [isSavingPreset, setIsSavingPreset] = useState(false);
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [isSavingPost, setIsSavingPost] = useState(false);
+  const [postSaved, setPostSaved] = useState(false);
+  const [selectedPostType, setSelectedPostType] = useState<PostType>('center_intro');
 
   // Extract image prompts from generated content
   const imagePrompts = useMemo(() => {
@@ -162,6 +169,65 @@ export function StepResult() {
     }
 
     setIsSavingPreset(false);
+  };
+
+  // 글 저장 (마이페이지용 + Supabase 벡터 저장)
+  const savePostToCloud = async () => {
+    if (!user) {
+      toast.error('로그인이 필요합니다');
+      return;
+    }
+
+    setIsSavingPost(true);
+
+    try {
+      // 제목 추출 (【제목】 또는 【제목 후보】 섹션에서)
+      let title = mainKeyword;
+      const titleMatch = generatedContent.match(/【제목[^】]*】\s*\n?([^\n【]+)/);
+      if (titleMatch) {
+        title = titleMatch[1].trim().replace(/^\d+\.\s*/, ''); // 숫자 접두사 제거
+      }
+
+      // 1. Firebase에 글 저장 (기존 기능)
+      const postId = await savePost(user.uid, {
+        title,
+        content: generatedContent,
+        category,
+        postType: selectedPostType,
+        searchIntent,
+        mainKeyword,
+        businessName,
+        imagePrompts,
+      });
+
+      // 2. Supabase에 임베딩과 함께 저장 (고급 RAG)
+      if (apiKey) {
+        try {
+          await savePostWithEmbedding(
+            postId,
+            user.uid,
+            title,
+            generatedContent,
+            selectedPostType,
+            category,
+            apiKey,
+            apiProvider
+          );
+          console.log('Post saved with embedding to Supabase');
+        } catch (embeddingError) {
+          // 임베딩 저장 실패해도 Firebase 저장은 성공했으므로 경고만 표시
+          console.warn('Embedding save failed (non-critical):', embeddingError);
+        }
+      }
+
+      setPostSaved(true);
+      toast.success('글이 저장되었습니다! (AI 학습에 활용됩니다)');
+    } catch (error) {
+      console.error('Post save error:', error);
+      toast.error('글 저장에 실패했습니다');
+    }
+
+    setIsSavingPost(false);
   };
 
   return (
@@ -333,6 +399,65 @@ export function StepResult() {
 
         {/* Card Generator */}
         <CardGenerator />
+
+        {/* Save Post to Cloud */}
+        {user && (
+          <div className="border-t border-[#eeeeee] pt-6">
+            <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+              <CloudUpload className="w-4 h-4 text-[#10b981]" />
+              마이페이지에 저장
+              <span className="text-xs text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded-full">
+                SEO 주기 관리
+              </span>
+            </h3>
+            <p className="text-xs text-[#6b7280] mb-3">
+              글을 저장하면 마이페이지에서 관리하고, SEO 발행 주기 알림을 받을 수 있습니다.
+            </p>
+            <div className="flex gap-2">
+              <Select
+                value={selectedPostType}
+                onValueChange={(value) => setSelectedPostType(value as PostType)}
+              >
+                <SelectTrigger className="w-[180px] h-11 bg-white border-[#eeeeee]">
+                  <SelectValue placeholder="글 유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(POST_TYPE_INFO) as PostType[]).map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {POST_TYPE_INFO[type].name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                className={`flex-1 h-11 ${
+                  postSaved
+                    ? 'bg-[#10b981] hover:bg-[#059669]'
+                    : 'bg-[#10b981] hover:bg-[#059669]'
+                }`}
+                onClick={savePostToCloud}
+                disabled={isSavingPost || postSaved}
+              >
+                {isSavingPost ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    저장 중...
+                  </>
+                ) : postSaved ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    저장 완료
+                  </>
+                ) : (
+                  <>
+                    <CloudUpload className="w-4 h-4 mr-2" />
+                    마이페이지에 저장
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Save Preset */}
         <div className="border-t border-[#eeeeee] pt-6">

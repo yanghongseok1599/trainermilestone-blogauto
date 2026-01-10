@@ -4,10 +4,43 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, User, Loader2, Crown, PenTool, ImagePlus, ArrowLeftRight, Dumbbell } from 'lucide-react';
+import { LogIn, LogOut, User, Loader2, FileText, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getSeoSchedule } from '@/lib/post-service';
+import { POST_TYPE_INFO, PostType, calculateDaysRemaining, calculateNextDue } from '@/types/post';
 
 export function Header() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, isSuperAdmin } = useAuth();
+  const [overdueCount, setOverdueCount] = useState(0);
+
+  // SEO 알림 개수 로드
+  useEffect(() => {
+    const loadAlerts = async () => {
+      if (!user) {
+        setOverdueCount(0);
+        return;
+      }
+
+      try {
+        const schedule = await getSeoSchedule(user.uid);
+        if (schedule) {
+          let count = 0;
+          (Object.keys(POST_TYPE_INFO) as PostType[]).forEach((postType) => {
+            const item = schedule[postType];
+            const cycleDays = POST_TYPE_INFO[postType].cycleDays;
+            const nextDue = calculateNextDue(item.lastPublished, cycleDays);
+            const daysRemaining = calculateDaysRemaining(nextDue);
+            if (daysRemaining < 0) count++;
+          });
+          setOverdueCount(count);
+        }
+      } catch (error) {
+        console.error('Failed to load SEO alerts:', error);
+      }
+    };
+
+    loadAlerts();
+  }, [user]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
@@ -16,7 +49,7 @@ export function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center">
             <Image
-              src="/제목을 입력해주세요. (13).png"
+              src="/제목을 입력해주세요. (16).png"
               alt="BlogBooster"
               width={140}
               height={40}
@@ -28,14 +61,24 @@ export function Header() {
 
           {/* Navigation & Auth */}
           <div className="flex items-center gap-4">
-            {/* Blog Auto Link */}
-            <Link href="/">
+            {/* Golden Keyword Extractor Link */}
+            <Link href="/keyword-extractor">
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
               >
-                <PenTool className="w-4 h-4 mr-1" />
+                황금키워드추출기
+              </Button>
+            </Link>
+
+            {/* Blog Auto Link */}
+            <Link href="/dashboard">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
+              >
                 BLOG-AUTO
               </Button>
             </Link>
@@ -47,7 +90,6 @@ export function Header() {
                 size="sm"
                 className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
               >
-                <ImagePlus className="w-4 h-4 mr-1" />
                 이미지 생성기
               </Button>
             </Link>
@@ -59,34 +101,23 @@ export function Header() {
                 size="sm"
                 className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
               >
-                <ArrowLeftRight className="w-4 h-4 mr-1" />
                 비포애프터
               </Button>
             </Link>
 
-            {/* Exercise GIF Generator Link */}
-            <Link href="/exercise-gif">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
-              >
-                <Dumbbell className="w-4 h-4 mr-1" />
-                운동 GIF
-              </Button>
-            </Link>
-
-            {/* Pricing Link */}
-            <Link href="/pricing">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
-              >
-                <Crown className="w-4 h-4 mr-1" />
-                요금제
-              </Button>
-            </Link>
+            {/* Admin Link - Super Admin Only */}
+            {isSuperAdmin && (
+              <Link href="/admin">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#f72c5b] hover:text-[#e0264f] hover:bg-[#f72c5b]/10"
+                >
+                  <Settings className="w-4 h-4 mr-1" />
+                  관리자
+                </Button>
+              </Link>
+            )}
 
             {/* Auth Buttons */}
             {loading ? (
@@ -107,6 +138,21 @@ export function Header() {
                     {user.displayName || user.email?.split('@')[0]}
                   </span>
                 </div>
+                <Link href="/mypage">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="relative text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
+                  >
+                    <FileText className="w-4 h-4 mr-1" />
+                    마이페이지
+                    {overdueCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                        {overdueCount}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
                 <Button
                   variant="ghost"
                   size="sm"
