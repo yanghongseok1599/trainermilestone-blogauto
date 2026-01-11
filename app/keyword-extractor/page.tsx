@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/lib/auth-context';
+import { checkAndIncrementUsage, getUsageToday } from '@/lib/usage-service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import Link from 'next/link';
 import {
   Search,
   Loader2,
@@ -53,6 +56,7 @@ type SortOrder = 'asc' | 'desc';
 const API_CONFIG_KEY = 'blogbooster_naver_ads_api';
 
 export default function KeywordExtractorPage() {
+  const { user } = useAuth();
   const [keyword, setKeyword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -65,6 +69,7 @@ export default function KeywordExtractorPage() {
   const [totalAvailable, setTotalAvailable] = useState(0);
   const [currentOffset, setCurrentOffset] = useState(0);
   const [searchedKeyword, setSearchedKeyword] = useState('');
+  const [usageRemaining, setUsageRemaining] = useState(3);
   const [apiConfig, setApiConfig] = useState<ApiConfig>({
     apiKey: '',
     secretKey: '',
@@ -79,6 +84,15 @@ export default function KeywordExtractorPage() {
   const [healthKeywords, setHealthKeywords] = useState<TrendingKeyword[]>([]);
   const [isLoadingTrending, setIsLoadingTrending] = useState(false);
   const [trendingTab, setTrendingTab] = useState<'trend' | 'health'>('trend');
+
+  // Load usage on mount
+  useEffect(() => {
+    if (user) {
+      getUsageToday(user.uid).then((usage) => {
+        setUsageRemaining(usage.remaining);
+      }).catch(console.error);
+    }
+  }, [user]);
 
   // 실시간 트렌드 키워드 (Google Trends 기반 시뮬레이션)
   const fetchTrendingKeywords = async () => {
@@ -182,6 +196,28 @@ export default function KeywordExtractorPage() {
     const kw = searchKeyword || keyword;
     if (!kw.trim()) {
       toast.error('키워드를 입력해주세요');
+      return;
+    }
+
+    // Check usage limit
+    if (!user) {
+      toast.error('로그인이 필요합니다');
+      return;
+    }
+
+    try {
+      const usageCheck = await checkAndIncrementUsage(user.uid);
+      if (!usageCheck.allowed) {
+        toast.error('오늘의 검색 횟수를 모두 사용했습니다. (일 3회 제한)', { duration: 5000 });
+        return;
+      }
+      setUsageRemaining(usageCheck.remaining);
+      if (usageCheck.remaining <= 1) {
+        toast.info(`오늘 남은 검색 횟수: ${usageCheck.remaining}회`, { duration: 3000 });
+      }
+    } catch (error) {
+      console.error('Usage check failed:', error);
+      toast.error('사용량 확인 중 오류가 발생했습니다');
       return;
     }
 
@@ -384,108 +420,22 @@ export default function KeywordExtractorPage() {
           <p className="text-[#6b7280] text-lg">
             경쟁이 낮은 블루오션 키워드를 찾아보세요
           </p>
+          {user && (
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200">
+              <span className="text-sm text-blue-700">
+                오늘 남은 검색 횟수: <span className="font-bold">{usageRemaining}/3</span>
+              </span>
+              <Link href="/pricing" className="text-xs text-blue-600 hover:text-blue-800 underline">
+                무제한 이용하기
+              </Link>
+            </div>
+          )}
         </div>
 
-        {/* API Config Toggle */}
-        <Card className={`mb-6 border ${showApiConfig ? 'border-[#f72c5b]' : 'border-[#eeeeee]'} shadow-sm`}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-[#f72c5b]" />
-                <CardTitle className="text-lg">네이버 광고 API 설정</CardTitle>
-                {isApiConfigured ? (
-                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">설정됨</span>
-                ) : (
-                  <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">선택사항</span>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowApiConfig(!showApiConfig)}
-                className="text-[#6b7280]"
-              >
-                {showApiConfig ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </Button>
-            </div>
-            {!showApiConfig && (
-              <CardDescription className="flex items-center gap-1">
-                <Info className="w-3 h-3" />
-                API 설정 시 월간 검색량 데이터를 확인할 수 있습니다
-              </CardDescription>
-            )}
-          </CardHeader>
-          {showApiConfig && (
-            <CardContent className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
-                <p className="font-medium mb-2">API 키 발급 방법:</p>
-                <ol className="list-decimal list-inside space-y-1 text-blue-600">
-                  <li>
-                    <a href="https://searchad.naver.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-800">
-                      네이버 검색광고 <ExternalLink className="w-3 h-3 inline" />
-                    </a>
-                    에 로그인
-                  </li>
-                  <li>도구 → API 사용관리 메뉴로 이동</li>
-                  <li>API 라이선스 생성 및 발급</li>
-                </ol>
-              </div>
-
-              {isApiConfigured && (
-                <div className="p-3 bg-green-50 rounded-lg text-sm text-green-700 flex items-center gap-2">
-                  <Check className="w-4 h-4" />
-                  API 정보가 저장되어 있습니다
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="customerId">고객 ID (Customer ID)</Label>
-                  <Input
-                    id="customerId"
-                    placeholder="예: 1234567"
-                    value={apiConfig.customerId}
-                    onChange={(e) => setApiConfig({ ...apiConfig, customerId: e.target.value })}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">API 라이선스 키 (API Key)</Label>
-                  <Input
-                    id="apiKey"
-                    placeholder="0100000000..."
-                    value={apiConfig.apiKey}
-                    onChange={(e) => setApiConfig({ ...apiConfig, apiKey: e.target.value })}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="secretKey">비밀 키 (Secret Key)</Label>
-                  <Input
-                    id="secretKey"
-                    type="password"
-                    placeholder="AQAAAA..."
-                    value={apiConfig.secretKey}
-                    onChange={(e) => setApiConfig({ ...apiConfig, secretKey: e.target.value })}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={saveApiConfig} className="flex-1 bg-[#f72c5b] hover:bg-[#e0264f]">
-                  <Save className="w-4 h-4 mr-2" />
-                  저장
-                </Button>
-                {isApiConfigured && (
-                  <Button onClick={clearApiConfig} variant="outline" className="text-gray-500">
-                    초기화
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          )}
-        </Card>
+        {/* API Config Toggle - Hidden for now */}
+        {/* <Card className={`mb-6 border ${showApiConfig ? 'border-[#f72c5b]' : 'border-[#eeeeee]'} shadow-sm`}>
+          ...
+        </Card> */}
 
         {/* Search + Trending Keywords */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
