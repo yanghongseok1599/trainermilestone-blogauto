@@ -753,13 +753,13 @@ export default function KeywordExtractorPage() {
 
         {/* Extended Keywords & Long-tail Keywords */}
         {results.length > 0 && (() => {
-          // 확장키워드 필터링 - 검색량 높은 키워드 20개
+          // 확장키워드 필터링 - 검색량 높은 키워드 10개
           const extendedKeywords = sortedResults
             .filter(r => r.totalSearchCount >= 1000 || (r.docCount > 0 && r.valueScore >= 30))
-            .slice(0, 20);
+            .slice(0, 10);
           const extendedKeywordSet = new Set(extendedKeywords.map(k => k.keyword));
 
-          // 롱테일키워드 필터링 - 더 긴 키워드 30개
+          // 롱테일키워드 필터링 - 더 긴 키워드 10개
           const baseKeywordLength = searchedKeyword.replace(/\s+/g, '').length;
           const longTailKeywords = sortedResults
             .filter(r => {
@@ -772,7 +772,7 @@ export default function KeywordExtractorPage() {
               return isLonger || hasSpace;
             })
             .sort((a, b) => a.docCount - b.docCount)
-            .slice(0, 30);
+            .slice(0, 10);
 
           return (
           <div className="grid md:grid-cols-2 gap-6 mt-6">
