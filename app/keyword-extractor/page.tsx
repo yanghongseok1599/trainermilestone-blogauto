@@ -753,26 +753,26 @@ export default function KeywordExtractorPage() {
 
         {/* Extended Keywords & Long-tail Keywords */}
         {results.length > 0 && (() => {
-          // 확장키워드 필터링
+          // 확장키워드 필터링 - 검색량 높은 키워드 20개
           const extendedKeywords = sortedResults
             .filter(r => r.totalSearchCount >= 1000 || (r.docCount > 0 && r.valueScore >= 30))
-            .slice(0, 10);
+            .slice(0, 20);
           const extendedKeywordSet = new Set(extendedKeywords.map(k => k.keyword));
 
-          // 롱테일키워드 필터링 (더 긴 키워드, 경쟁력 있으면 확장키워드와 중복 허용)
+          // 롱테일키워드 필터링 - 더 긴 키워드 30개
           const baseKeywordLength = searchedKeyword.replace(/\s+/g, '').length;
           const longTailKeywords = sortedResults
             .filter(r => {
               // 경쟁 낮음 또는 문서수 5000 미만
               if (r.competition !== '낮음' && r.docCount >= 5000) return false;
-              // 더 긴 키워드 (기본 키워드보다 3글자 이상 길거나 띄어쓰기 포함)
+              // 더 긴 키워드 (기본 키워드보다 4글자 이상 길거나 띄어쓰기 포함)
               const kwLength = r.keyword.replace(/\s+/g, '').length;
-              const isLonger = kwLength >= baseKeywordLength + 3;
-              const hasSpace = r.keyword.includes(' ') || r.keyword.length > baseKeywordLength + 2;
+              const isLonger = kwLength >= baseKeywordLength + 4;
+              const hasSpace = r.keyword.includes(' ') || r.keyword.length > baseKeywordLength + 3;
               return isLonger || hasSpace;
             })
             .sort((a, b) => a.docCount - b.docCount)
-            .slice(0, 10);
+            .slice(0, 30);
 
           return (
           <div className="grid md:grid-cols-2 gap-6 mt-6">

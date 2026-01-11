@@ -218,20 +218,38 @@ async function getNaverRelatedKeywords(keyword: string): Promise<string[]> {
  * 연관 키워드 생성 (API 없을 때 폴백)
  */
 function generateRelatedKeywords(mainKeyword: string): string[] {
-  const suffixes = [
+  // 짧은 접미사 (기본 확장 키워드)
+  const shortSuffixes = [
     '추천', '가격', '후기', '비용', '효과',
-    '방법', '순위', '비교', '장단점', '종류',
-    '이용방법', '예약', '할인', '이벤트', '위치',
-    '후기', '장점', '단점', '차이', '선택', '팁'
+    '방법', '순위', '비교', '종류', '선택',
+    '할인', '이벤트', '위치', '장점', '단점', '팁'
+  ];
+
+  // 긴 접미사 (롱테일 키워드)
+  const longSuffixes = [
+    '추천 순위', '가격 비교', '후기 모음', '비용 절약',
+    '효과 좋은', '이용 방법', '장단점 비교', '종류 정리',
+    '예약 방법', '할인 이벤트', '이용 후기', '추천 이유',
+    '선택 가이드', '완벽 가이드', '구매 가이드', '비교 분석',
+    '사용법 정리', '주의사항', '꿀팁 모음', '베스트 추천',
+    '실제 후기', '상세 리뷰', '전격 비교', '총정리',
+    '추천 best', '인기 순위', 'TOP 추천', '완벽 정리'
   ];
 
   const keywords: string[] = [mainKeyword];
-  suffixes.forEach(suffix => {
+
+  // 짧은 접미사 추가 (띄어쓰기 O, X 모두)
+  shortSuffixes.forEach(suffix => {
     keywords.push(`${mainKeyword} ${suffix}`);
-    keywords.push(`${mainKeyword}${suffix}`); // 띄어쓰기 없는 버전도 추가
+    keywords.push(`${mainKeyword}${suffix}`);
   });
 
-  return keywords.slice(0, 50);
+  // 긴 접미사 추가 (띄어쓰기 O만)
+  longSuffixes.forEach(suffix => {
+    keywords.push(`${mainKeyword} ${suffix}`);
+  });
+
+  return keywords.slice(0, 80);
 }
 
 export async function POST(request: NextRequest) {
