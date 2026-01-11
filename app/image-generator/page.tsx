@@ -277,7 +277,7 @@ function ImageGeneratorContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#f5f5f5] py-12 px-4">
-      <div className="container mx-auto max-w-6xl">
+      <div className="container mx-auto max-w-5xl">
         {/* Header */}
         <div className="text-center mb-12">
           <Link
