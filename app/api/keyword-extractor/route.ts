@@ -188,21 +188,50 @@ async function getKeywordStats(
 }
 
 /**
+ * 네이버 연관검색어 API로 추가 키워드 가져오기
+ */
+async function getNaverRelatedKeywords(keyword: string): Promise<string[]> {
+  try {
+    const response = await fetch(
+      `https://ac.search.naver.com/nx/ac?q=${encodeURIComponent(keyword)}&con=0&frm=nv&ans=2&r_format=json&r_enc=UTF-8&r_unicode=0&t_koreng=1&run=2&rev=4&q_enc=UTF-8&st=100&std=1`,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const items = data.items?.[0] || [];
+      const relatedKeywords = items.map((item: string[][]) => item[0]).filter((kw: string) => kw && kw.length > 0);
+      console.log('Naver related keywords:', relatedKeywords);
+      return relatedKeywords.slice(0, 30);
+    }
+  } catch (e) {
+    console.error('Naver related keywords error:', e);
+  }
+  return [];
+}
+
+/**
  * 연관 키워드 생성 (API 없을 때 폴백)
  */
 function generateRelatedKeywords(mainKeyword: string): string[] {
   const suffixes = [
     '추천', '가격', '후기', '비용', '효과',
     '방법', '순위', '비교', '장단점', '종류',
-    '이용방법', '예약', '할인', '이벤트', '위치'
+    '이용방법', '예약', '할인', '이벤트', '위치',
+    '후기', '장점', '단점', '차이', '선택', '팁'
   ];
 
   const keywords: string[] = [mainKeyword];
   suffixes.forEach(suffix => {
     keywords.push(`${mainKeyword} ${suffix}`);
+    keywords.push(`${mainKeyword}${suffix}`); // 띄어쓰기 없는 버전도 추가
   });
 
-  return keywords.slice(0, 20);
+  return keywords.slice(0, 50);
 }
 
 export async function POST(request: NextRequest) {
@@ -229,9 +258,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '키워드를 입력해주세요' }, { status: 400 });
     }
 
+    // 네이버 연관검색어 API로 추가 키워드 가져오기
+    const relatedKeywordsFromNaver = await getNaverRelatedKeywords(keywords[0]);
+    const fallbackKeywords = generateRelatedKeywords(keywords[0]);
+
+    // 네이버 연관검색어 + 생성한 키워드 결합 (중복 제거)
+    const allRelatedKeywords = Array.from(new Set([
+      keywords[0], // 원본 키워드
+      ...relatedKeywordsFromNaver,
+      ...fallbackKeywords
+    ]));
+
+    console.log('Total related keywords:', allRelatedKeywords.length);
+
     // API 키가 있으면 네이버 광고 API 사용
     // 네이버 광고 API는 여러 키워드를 줄바꿈으로 구분
-    const keywordsForApi = keywords.join('\n');
+    const keywordsForApi = allRelatedKeywords.join('\n');
     if (apiKey && secretKey && customerId) {
       const adsResult = await getKeywordStats(keywordsForApi, apiKey, secretKey, customerId);
 
@@ -296,10 +338,9 @@ export async function POST(request: NextRequest) {
     }
 
     // API 키 없거나 실패 시 - 문서수만 조회
-    const relatedKeywords = generateRelatedKeywords(keyword);
-    const docCounts = await getDocumentCountsSequentially(relatedKeywords);
+    const docCounts = await getDocumentCountsSequentially(allRelatedKeywords);
 
-    const fallbackKeywords: KeywordResult[] = relatedKeywords.map((kw, idx) => {
+    const fallbackKeywords: KeywordResult[] = allRelatedKeywords.map((kw, idx) => {
       const docCount = docCounts[idx];
       let score = 0;
       if (docCount < 5000) score = 80;
