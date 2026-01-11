@@ -2507,7 +2507,7 @@ export default function BeforeAfterPage() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#60a5fa] flex items-center justify-center">
               <ArrowLeftRight className="w-4 h-4 text-white" />
             </div>
-            <h1 className="text-lg font-bold text-[#111111]">
+            <h1 className="text-xl font-bold text-[#111111]">
               비포애프터 생성기
             </h1>
           </div>
@@ -2564,7 +2564,7 @@ export default function BeforeAfterPage() {
                             setIsCustomSize(false);
                             setOutputSize(size);
                           }}
-                          className={`h-6 text-[10px] px-1.5 ${!isCustomSize && outputSize.label === size.label
+                          className={`h-8 text-sm px-1.5 ${!isCustomSize && outputSize.label === size.label
                             ? 'bg-[#111111] hover:bg-[#333333] text-white'
                             : 'border-[#eeeeee]'}`}
                         >
@@ -2578,7 +2578,7 @@ export default function BeforeAfterPage() {
                           setIsCustomSize(true);
                           setOutputSize({ width: customWidth, height: customHeight, label: '커스텀' });
                         }}
-                        className={`h-6 text-[10px] px-1.5 ${isCustomSize
+                        className={`h-8 text-sm px-1.5 ${isCustomSize
                           ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'
                           : 'border-[#eeeeee]'}`}
                       >
@@ -2590,7 +2590,7 @@ export default function BeforeAfterPage() {
                     variant="outline"
                     size="sm"
                     onClick={resetAll}
-                    className="border-[#eeeeee] h-6 text-xs px-2"
+                    className="border-[#eeeeee] h-8 text-sm px-2"
                   >
                     <RefreshCw className="w-3 h-3 mr-1" />
                     초기화
@@ -2600,7 +2600,7 @@ export default function BeforeAfterPage() {
               <CardContent className="space-y-2 px-3 pb-3">
                 {/* 드래그 안내 */}
                 {(beforeImage || afterImage) && (
-                  <div className={`flex items-center gap-1 text-[10px] p-1.5 rounded ${
+                  <div className={`flex items-center gap-1 text-xs p-1.5 rounded ${
                     isEraserMode && (beforeMaskData || afterMaskData)
                       ? 'text-orange-500 bg-orange-500/10'
                       : 'text-[#3b82f6] bg-[#3b82f6]/10'
@@ -2692,7 +2692,7 @@ export default function BeforeAfterPage() {
                               <Upload className="w-4 h-4 text-[#3b82f6]" />
                             </div>
                             <p className="text-xs font-medium text-[#3b82f6] text-center">Before</p>
-                            <p className="text-[10px] text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
+                            <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                           </div>
                         </div>
                         <div
@@ -2704,7 +2704,7 @@ export default function BeforeAfterPage() {
                               <Upload className="w-4 h-4 text-[#10b981]" />
                             </div>
                             <p className="text-xs font-medium text-[#10b981] text-center">After</p>
-                            <p className="text-[10px] text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
+                            <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                           </div>
                         </div>
                       </div>
@@ -2728,7 +2728,7 @@ export default function BeforeAfterPage() {
                           <Upload className="w-4 h-4 text-[#10b981]" />
                         </div>
                         <p className="text-xs font-medium text-[#10b981] text-center">After</p>
-                        <p className="text-[10px] text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
+                        <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                       </div>
                     </div>
                   )}
@@ -2750,7 +2750,7 @@ export default function BeforeAfterPage() {
                           <Upload className="w-4 h-4 text-[#3b82f6]" />
                         </div>
                         <p className="text-xs font-medium text-[#3b82f6] text-center">Before</p>
-                        <p className="text-[10px] text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
+                        <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                       </div>
                     </div>
                   )}
@@ -2759,7 +2759,7 @@ export default function BeforeAfterPage() {
                 {/* 이전단계 버튼 */}
                 <div className="flex gap-1.5 mb-2">
                   <Button
-                    className="flex-1 h-7 bg-[#374151] hover:bg-[#4b5563] text-white text-xs"
+                    className="flex-1 h-8 bg-[#374151] hover:bg-[#4b5563] text-white text-sm"
                     onClick={undo}
                     disabled={historyIndex <= 0}
                     title="이전 단계 (Ctrl+Z)"
@@ -2772,7 +2772,7 @@ export default function BeforeAfterPage() {
                 {/* 이미지 삭제 버튼 */}
                 <div className="flex gap-1.5 mb-2">
                   <Button
-                    className="flex-1 h-7 bg-[#ef4444] hover:bg-[#dc2626] text-white text-xs"
+                    className="flex-1 h-8 bg-[#ef4444] hover:bg-[#dc2626] text-white text-sm"
                     onClick={deleteBeforeImage}
                     disabled={!beforeImage}
                     title="Before 이미지 삭제"
@@ -2781,7 +2781,7 @@ export default function BeforeAfterPage() {
                     Before 삭제
                   </Button>
                   <Button
-                    className="flex-1 h-7 bg-[#ef4444] hover:bg-[#dc2626] text-white text-xs"
+                    className="flex-1 h-8 bg-[#ef4444] hover:bg-[#dc2626] text-white text-sm"
                     onClick={deleteAfterImage}
                     disabled={!afterImage}
                     title="After 이미지 삭제"
@@ -2828,7 +2828,7 @@ export default function BeforeAfterPage() {
             {layout === 'slider' && (
               <Card className="border-[#eeeeee] shadow-sm">
                 <CardContent className="pt-2 pb-2 px-2">
-                  <Label className="text-[10px] mb-1 block">슬라이더: {sliderPosition}%</Label>
+                  <Label className="text-xs mb-1 block">슬라이더: {sliderPosition}%</Label>
                   <Slider
                     value={[sliderPosition]}
                     onValueChange={([value]) => setSliderPosition(value)}
@@ -2843,7 +2843,7 @@ export default function BeforeAfterPage() {
             {/* 레이아웃 설정 */}
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="flex items-center gap-1 text-xs">
+                <CardTitle className="flex items-center gap-1 text-sm">
                   <Settings className="w-3 h-3 text-[#8b5cf6]" />
                   레이아웃
                 </CardTitle>
@@ -2856,7 +2856,7 @@ export default function BeforeAfterPage() {
                       variant={layout === option.type ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setLayout(option.type)}
-                      className={`h-5 px-1.5 text-[10px] ${layout === option.type
+                      className={`h-5 px-1.5 text-xs ${layout === option.type
                         ? 'bg-[#3b82f6] hover:bg-[#2563eb] text-white'
                         : 'border-[#eeeeee]'}`}
                     >
@@ -2868,7 +2868,7 @@ export default function BeforeAfterPage() {
 
                 {layout === 'slider' && (
                   <div className="space-y-0.5">
-                    <Label className="text-[10px]">슬라이더: {sliderPosition}%</Label>
+                    <Label className="text-xs">슬라이더: {sliderPosition}%</Label>
                     <Slider
                       value={[sliderPosition]}
                       onValueChange={([value]) => setSliderPosition(value)}
@@ -2880,7 +2880,7 @@ export default function BeforeAfterPage() {
                 )}
 
                 <div className="space-y-1">
-                  <Label className="text-[10px]">출력 크기</Label>
+                  <Label className="text-xs">출력 크기</Label>
                   <div className="flex flex-wrap gap-0.5">
                     {OUTPUT_SIZES.filter(s => s.label !== '커스텀').map((size) => (
                       <Button
@@ -2891,7 +2891,7 @@ export default function BeforeAfterPage() {
                           setIsCustomSize(false);
                           setOutputSize(size);
                         }}
-                        className={`h-5 px-1 text-[9px] ${!isCustomSize && outputSize.label === size.label
+                        className={`h-5 px-1 text-xs ${!isCustomSize && outputSize.label === size.label
                           ? 'bg-[#111111] hover:bg-[#333333] text-white'
                           : 'border-[#eeeeee]'}`}
                       >
@@ -2905,7 +2905,7 @@ export default function BeforeAfterPage() {
                         setIsCustomSize(true);
                         setOutputSize({ width: customWidth, height: customHeight, label: '커스텀' });
                       }}
-                      className={`h-5 px-1 text-[9px] ${isCustomSize
+                      className={`h-5 px-1 text-xs ${isCustomSize
                         ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'
                         : 'border-[#eeeeee]'}`}
                     >
@@ -2922,11 +2922,11 @@ export default function BeforeAfterPage() {
                           setCustomWidth(w);
                           setOutputSize({ width: w, height: customHeight, label: '커스텀' });
                         }}
-                        className="h-6 text-[10px] w-16 px-1 text-center"
+                        className="h-8 text-sm w-16 px-1 text-center"
                         min={100}
                         max={4000}
                       />
-                      <span className="text-[10px] text-gray-500">×</span>
+                      <span className="text-xs text-gray-500">×</span>
                       <Input
                         type="number"
                         value={customHeight}
@@ -2935,15 +2935,15 @@ export default function BeforeAfterPage() {
                           setCustomHeight(h);
                           setOutputSize({ width: customWidth, height: h, label: '커스텀' });
                         }}
-                        className="h-6 text-[10px] w-16 px-1 text-center"
+                        className="h-8 text-sm w-16 px-1 text-center"
                         min={100}
                         max={4000}
                       />
-                      <span className="text-[9px] text-gray-400">px</span>
+                      <span className="text-xs text-gray-400">px</span>
                     </div>
                   )}
                   {isCustomSize && (
-                    <p className="text-[9px] text-gray-500">
+                    <p className="text-xs text-gray-500">
                       현재: {outputSize.width} × {outputSize.height}px
                     </p>
                   )}
@@ -2954,19 +2954,19 @@ export default function BeforeAfterPage() {
             {/* 배경 제거 (누끼) */}
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="flex items-center gap-1 text-xs">
+                <CardTitle className="flex items-center gap-1 text-sm">
                   <Scissors className="w-3 h-3 text-[#8b5cf6]" />
                   AI 배경 제거
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 px-2 pb-2">
-                <p className="text-[9px] text-gray-500">
+                <p className="text-xs text-gray-500">
                   AI 모델로 인물을 정확하게 인식하여 배경을 제거합니다.<br/>
                   * 첫 실행 시 모델 로딩에 시간이 걸립니다
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   <Button
-                    className="h-6 text-[10px] bg-[#8b5cf6] hover:bg-[#7c3aed] text-white"
+                    className="h-8 text-sm bg-[#8b5cf6] hover:bg-[#7c3aed] text-white"
                     onClick={() => applyRemoveBackground('before')}
                     disabled={isRemovingBg || !beforeImage}
                   >
@@ -2978,7 +2978,7 @@ export default function BeforeAfterPage() {
                     Before
                   </Button>
                   <Button
-                    className="h-6 text-[10px] bg-[#8b5cf6] hover:bg-[#7c3aed] text-white"
+                    className="h-8 text-sm bg-[#8b5cf6] hover:bg-[#7c3aed] text-white"
                     onClick={() => applyRemoveBackground('after')}
                     disabled={isRemovingBg || !afterImage}
                   >
@@ -2991,7 +2991,7 @@ export default function BeforeAfterPage() {
                   </Button>
                 </div>
                 <Button
-                  className="w-full h-6 text-[10px] bg-[#6d28d9] hover:bg-[#5b21b6] text-white"
+                  className="w-full h-8 text-sm bg-[#6d28d9] hover:bg-[#5b21b6] text-white"
                   onClick={() => applyRemoveBackground('both')}
                   disabled={isRemovingBg || (!beforeImage && !afterImage)}
                 >
@@ -3007,7 +3007,7 @@ export default function BeforeAfterPage() {
                     </>
                   )}
                 </Button>
-                <p className="text-[8px] text-gray-400">
+                <p className="text-xs text-gray-400">
                   * 배경이 단색일수록 정확도가 높습니다
                 </p>
               </CardContent>
@@ -3016,19 +3016,19 @@ export default function BeforeAfterPage() {
             {/* 아웃라인 설정 */}
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="flex items-center gap-1 text-xs">
+                <CardTitle className="flex items-center gap-1 text-sm">
                   <Palette className="w-3 h-3 text-[#f72c5b]" />
                   아웃라인
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 px-2 pb-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px]">사용</Label>
+                  <Label className="text-xs">사용</Label>
                   <Button
                     variant={outline.enabled ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setOutline(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`h-5 text-[10px] px-2 ${outline.enabled ? 'bg-[#10b981] hover:bg-[#059669]' : ''}`}
+                    className={`h-8 text-sm px-2 ${outline.enabled ? 'bg-[#10b981] hover:bg-[#059669]' : ''}`}
                   >
                     {outline.enabled ? 'ON' : 'OFF'}
                   </Button>
@@ -3037,7 +3037,7 @@ export default function BeforeAfterPage() {
                 {outline.enabled && (
                   <>
                     <div className="space-y-0.5">
-                      <Label className="text-[10px]">색상</Label>
+                      <Label className="text-xs">색상</Label>
                       <div className="flex gap-0.5">
                         {['#ffffff', '#000000', '#f72c5b', '#3b82f6', '#10b981'].map((color) => (
                           <button
@@ -3066,7 +3066,7 @@ export default function BeforeAfterPage() {
 
                     <div className="space-y-1">
                       <div className="space-y-0.5">
-                        <Label className="text-[10px]">Before 두께: {outline.beforeThickness}px</Label>
+                        <Label className="text-xs">Before 두께: {outline.beforeThickness}px</Label>
                         <Slider
                           value={[outline.beforeThickness]}
                           onValueChange={([value]) => {
@@ -3079,7 +3079,7 @@ export default function BeforeAfterPage() {
                         />
                       </div>
                       <div className="space-y-0.5">
-                        <Label className="text-[10px]">After 두께: {outline.afterThickness}px</Label>
+                        <Label className="text-xs">After 두께: {outline.afterThickness}px</Label>
                         <Slider
                           value={[outline.afterThickness]}
                           onValueChange={([value]) => {
@@ -3094,7 +3094,7 @@ export default function BeforeAfterPage() {
                     </div>
 
                     <div className="space-y-0.5">
-                      <Label className="text-[10px]">스타일</Label>
+                      <Label className="text-xs">스타일</Label>
                       <div className="flex gap-1">
                         {[
                           { value: 'solid' as const, label: '실선' },
@@ -3103,7 +3103,7 @@ export default function BeforeAfterPage() {
                         ].map(({ value, label }) => (
                           <button
                             key={value}
-                            className={`flex-1 px-1 py-0.5 text-[9px] rounded transition-colors ${
+                            className={`flex-1 px-1 py-0.5 text-xs rounded transition-colors ${
                               outline.style === value
                                 ? 'bg-[#f72c5b] text-white'
                                 : 'bg-[#333] text-gray-300 hover:bg-[#444]'
@@ -3123,7 +3123,7 @@ export default function BeforeAfterPage() {
                     {(beforeMaskData || afterMaskData) && (
                       <div className="space-y-1 border-t border-gray-200 pt-2 mt-1">
                         <div className="flex items-center justify-between">
-                          <Label className="text-[10px] flex items-center gap-1">
+                          <Label className="text-xs flex items-center gap-1">
                             <Eraser className="w-3 h-3" />
                             라인 지우개
                           </Label>
@@ -3134,14 +3134,14 @@ export default function BeforeAfterPage() {
                               setIsEraserMode(!isEraserMode);
                               if (!isEraserMode) setIsAreaExcludeMode(false);
                             }}
-                            className={`h-5 text-[10px] px-2 ${isEraserMode ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
+                            className={`h-8 text-sm px-2 ${isEraserMode ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
                           >
                             {isEraserMode ? 'ON' : 'OFF'}
                           </Button>
                         </div>
                         {isEraserMode && (
                           <div className="space-y-0.5">
-                            <Label className="text-[9px]">지우개 크기: {eraserSize}px</Label>
+                            <Label className="text-xs">지우개 크기: {eraserSize}px</Label>
                             <Slider
                               value={[eraserSize]}
                               onValueChange={([value]) => setEraserSize(value)}
@@ -3156,7 +3156,7 @@ export default function BeforeAfterPage() {
                             variant="outline"
                             size="sm"
                             onClick={clearErasedAreas}
-                            className="w-full h-5 text-[9px]"
+                            className="w-full h-8 text-sm"
                           >
                             지운 영역 초기화
                           </Button>
@@ -3168,7 +3168,7 @@ export default function BeforeAfterPage() {
                     {(beforeMaskData || afterMaskData) && (
                       <div className="space-y-1 border-t border-gray-200 pt-2 mt-1">
                         <div className="flex items-center justify-between">
-                          <Label className="text-[10px] flex items-center gap-1">
+                          <Label className="text-xs flex items-center gap-1">
                             <Scissors className="w-3 h-3" />
                             영역 제외
                           </Label>
@@ -3179,13 +3179,13 @@ export default function BeforeAfterPage() {
                               setIsAreaExcludeMode(!isAreaExcludeMode);
                               if (!isAreaExcludeMode) setIsEraserMode(false);
                             }}
-                            className={`h-5 text-[10px] px-2 ${isAreaExcludeMode ? 'bg-purple-500 hover:bg-purple-600' : ''}`}
+                            className={`h-8 text-sm px-2 ${isAreaExcludeMode ? 'bg-purple-500 hover:bg-purple-600' : ''}`}
                           >
                             {isAreaExcludeMode ? 'ON' : 'OFF'}
                           </Button>
                         </div>
                         {isAreaExcludeMode && (
-                          <p className="text-[9px] text-purple-600">
+                          <p className="text-xs text-purple-600">
                             아웃라인을 클릭하면 연결된 영역이 제외됩니다
                           </p>
                         )}
@@ -3194,7 +3194,7 @@ export default function BeforeAfterPage() {
                             variant="outline"
                             size="sm"
                             onClick={clearExcludedRegions}
-                            className="w-full h-5 text-[9px]"
+                            className="w-full h-8 text-sm"
                           >
                             제외 영역 초기화 ({excludedRegions.before.size + excludedRegions.after.size}개 픽셀)
                           </Button>
@@ -3202,14 +3202,14 @@ export default function BeforeAfterPage() {
                       </div>
                     )}
 
-                    <p className="text-[9px] text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 mt-1">
                       * AI가 인물을 감지하여 외곽선 생성<br/>
                       * 원본 이미지 위에 아웃라인 오버레이<br/>
                       {(beforeMaskData || afterMaskData) && '* 두께/색상/스타일 변경 시 실시간 적용'}
                     </p>
 
                     <Button
-                      className="w-full h-6 text-[10px] bg-[#f72c5b] hover:bg-[#e0264f] text-white"
+                      className="w-full h-8 text-sm bg-[#f72c5b] hover:bg-[#e0264f] text-white"
                       onClick={applyOutline}
                       disabled={isProcessingOutline || (!beforeImage && !afterImage)}
                     >
@@ -3233,19 +3233,19 @@ export default function BeforeAfterPage() {
             {/* 라벨 설정 */}
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="flex items-center gap-1 text-xs">
+                <CardTitle className="flex items-center gap-1 text-sm">
                   <Type className="w-3 h-3 text-[#f59e0b]" />
                   라벨
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 px-2 pb-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px]">표시</Label>
+                  <Label className="text-xs">표시</Label>
                   <Button
                     variant={labels.showLabels ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setLabels(prev => ({ ...prev, showLabels: !prev.showLabels }))}
-                    className={`h-5 text-[10px] px-2 ${labels.showLabels ? 'bg-[#f59e0b] hover:bg-[#d97706]' : ''}`}
+                    className={`h-8 text-sm px-2 ${labels.showLabels ? 'bg-[#f59e0b] hover:bg-[#d97706]' : ''}`}
                   >
                     {labels.showLabels ? 'ON' : 'OFF'}
                   </Button>
@@ -3255,47 +3255,47 @@ export default function BeforeAfterPage() {
                   <>
                     <div className="grid grid-cols-2 gap-1">
                       <div>
-                        <Label className="text-[9px]">Before</Label>
+                        <Label className="text-xs">Before</Label>
                         <Input
                           value={labels.beforeText}
                           onChange={(e) => setLabels(prev => ({ ...prev, beforeText: e.target.value }))}
-                          className="h-6 text-[10px]"
+                          className="h-8 text-sm"
                         />
                       </div>
                       <div>
-                        <Label className="text-[9px]">After</Label>
+                        <Label className="text-xs">After</Label>
                         <Input
                           value={labels.afterText}
                           onChange={(e) => setLabels(prev => ({ ...prev, afterText: e.target.value }))}
-                          className="h-6 text-[10px]"
+                          className="h-8 text-sm"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <Label className="text-[9px]">커스텀</Label>
+                      <Label className="text-xs">커스텀</Label>
                       <Input
                         value={labels.customText}
                         onChange={(e) => setLabels(prev => ({ ...prev, customText: e.target.value }))}
                         placeholder="4주 결과"
-                        className="h-6 text-[10px]"
+                        className="h-8 text-sm"
                       />
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <Label className="text-[10px]">날짜</Label>
+                      <Label className="text-xs">날짜</Label>
                       <Button
                         variant={labels.showDate ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setLabels(prev => ({ ...prev, showDate: !prev.showDate }))}
-                        className={`h-5 text-[10px] px-2 ${labels.showDate ? 'bg-[#6b7280] hover:bg-[#4b5563]' : ''}`}
+                        className={`h-8 text-sm px-2 ${labels.showDate ? 'bg-[#6b7280] hover:bg-[#4b5563]' : ''}`}
                       >
                         {labels.showDate ? 'ON' : 'OFF'}
                       </Button>
                     </div>
 
                     <div className="space-y-0.5">
-                      <Label className="text-[10px]">크기: {labels.fontSize}px</Label>
+                      <Label className="text-xs">크기: {labels.fontSize}px</Label>
                       <Slider
                         value={[labels.fontSize]}
                         onValueChange={([value]) => setLabels(prev => ({ ...prev, fontSize: value }))}
@@ -3312,19 +3312,19 @@ export default function BeforeAfterPage() {
             {/* 워터마크 설정 */}
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
-                <CardTitle className="flex items-center gap-1 text-xs">
+                <CardTitle className="flex items-center gap-1 text-sm">
                   <Stamp className="w-3 h-3 text-[#6366f1]" />
                   워터마크
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 px-2 pb-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px]">사용</Label>
+                  <Label className="text-xs">사용</Label>
                   <Button
                     variant={watermark.enabled ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWatermark(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`h-5 text-[10px] px-2 ${watermark.enabled ? 'bg-[#6366f1] hover:bg-[#4f46e5]' : ''}`}
+                    className={`h-8 text-sm px-2 ${watermark.enabled ? 'bg-[#6366f1] hover:bg-[#4f46e5]' : ''}`}
                   >
                     {watermark.enabled ? 'ON' : 'OFF'}
                   </Button>
@@ -3339,7 +3339,7 @@ export default function BeforeAfterPage() {
                       {watermark.image ? (
                         <img src={watermark.image} alt="Watermark" className="h-7 object-contain" />
                       ) : (
-                        <span className="text-[10px] text-[#9ca3af]">로고</span>
+                        <span className="text-xs text-[#9ca3af]">로고</span>
                       )}
                     </div>
                     <input
@@ -3351,7 +3351,7 @@ export default function BeforeAfterPage() {
                     />
 
                     <div className="space-y-0.5">
-                      <Label className="text-[10px]">투명도: {watermark.opacity}%</Label>
+                      <Label className="text-xs">투명도: {watermark.opacity}%</Label>
                       <Slider
                         value={[watermark.opacity]}
                         onValueChange={([value]) => setWatermark(prev => ({ ...prev, opacity: value }))}
@@ -3362,7 +3362,7 @@ export default function BeforeAfterPage() {
                     </div>
 
                     <div className="space-y-0.5">
-                      <Label className="text-[10px]">크기: {watermark.size}px</Label>
+                      <Label className="text-xs">크기: {watermark.size}px</Label>
                       <Slider
                         value={[watermark.size]}
                         onValueChange={([value]) => setWatermark(prev => ({ ...prev, size: value }))}

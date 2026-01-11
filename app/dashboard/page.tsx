@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import { STEPS } from '@/lib/constants';
@@ -12,7 +11,6 @@ import { StepBusinessInfo } from '@/components/steps/step-business-info';
 import { StepImageUpload } from '@/components/steps/step-image-upload';
 import { StepGenerate } from '@/components/steps/step-generate';
 import { StepResult } from '@/components/steps/step-result';
-import Image from 'next/image';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -63,17 +61,6 @@ export default function DashboardPage() {
     <main className="container mx-auto px-4 py-8 max-w-5xl">
       {/* Hero Section */}
       <section className="text-center mb-10 pt-4">
-        <div className="flex justify-center mb-4">
-          <Link href="/" className="cursor-pointer hover:scale-105 transition-transform">
-            <Image
-              src="/제목을 입력해주세요. (16).png"
-              alt="BlogBooster"
-              width={240}
-              height={68}
-              className="h-16 md:h-18 w-auto object-contain"
-            />
-          </Link>
-        </div>
         <p className="text-[#f72c5b] text-sm font-medium tracking-wider mb-3">
           AI BLOG AUTOMATION
         </p>

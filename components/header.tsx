@@ -134,8 +134,8 @@ export function Header() {
                   ) : (
                     <User className="w-4 h-4 text-[#6b7280]" />
                   )}
-                  <span className="text-sm text-[#111111] max-w-[120px] truncate">
-                    {user.displayName || user.email?.split('@')[0]}
+                  <span className="text-sm text-[#111111]">
+                    {(user.displayName || user.email?.split('@')[0] || '').substring(0, 4)}
                   </span>
                 </div>
                 <Link href="/mypage">
