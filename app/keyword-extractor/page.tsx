@@ -94,11 +94,56 @@ export default function KeywordExtractorPage() {
     }
   }, [user]);
 
-  // 실시간 트렌드 키워드 (Google Trends 기반 시뮬레이션)
+  // 실시간 트렌드 키워드 (네이트, 줌 크롤링)
   const fetchTrendingKeywords = async () => {
     setIsLoadingTrending(true);
     try {
-      // 실시간 인기 검색어 (시즌/이슈 반영)
+      const response = await fetch('/api/trending-keywords');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Trending keywords from crawling:', data);
+
+        // 크롤링된 키워드를 트렌드에 표시
+        if (data.keywords && data.keywords.length > 0) {
+          const crawledKeywords = data.keywords.slice(0, 10).map((item: any) => ({
+            keyword: item.keyword,
+            searchVolume: Math.floor(Math.random() * 50000) + 10000, // 임시 검색량
+            change: Math.floor(Math.random() * 7) - 3, // -3 ~ +3
+          }));
+          setTrendingKeywords(crawledKeywords);
+        } else {
+          // 크롤링 실패 시 폴백 데이터
+          throw new Error('No crawled keywords');
+        }
+
+        // 건강/의학/스포츠 키워드는 기존 데이터 유지
+        const healthSports = [
+          { keyword: '다이어트', searchVolume: 245000 },
+          { keyword: '헬스장', searchVolume: 135000 },
+          { keyword: '필라테스', searchVolume: 89400 },
+          { keyword: 'PT', searchVolume: 67200 },
+          { keyword: '요가', searchVolume: 78900 },
+          { keyword: '홈트레이닝', searchVolume: 54300 },
+          { keyword: '크로스핏', searchVolume: 23400 },
+          { keyword: '수영', searchVolume: 98700 },
+          { keyword: '러닝', searchVolume: 76500 },
+          { keyword: '골프', searchVolume: 156000 },
+          { keyword: '테니스', searchVolume: 67800 },
+          { keyword: '등산', searchVolume: 112000 },
+          { keyword: '단백질보충제', searchVolume: 45600 },
+          { keyword: '비타민', searchVolume: 134000 },
+          { keyword: '허리통증', searchVolume: 89100 },
+        ];
+        const shuffledHealth = [...healthSports].sort(() => Math.random() - 0.5).slice(0, 10);
+        const healthWithChange = shuffledHealth.map(item => ({
+          ...item,
+          change: Math.floor(Math.random() * 7) - 3,
+        }));
+        setHealthKeywords(healthWithChange);
+      }
+    } catch (error) {
+      console.error('Failed to fetch trending:', error);
+      // 폴백: 기존 데이터 사용
       const realTrends = [
         { keyword: '설연휴', searchVolume: 89200 },
         { keyword: '새해운세', searchVolume: 67500 },
@@ -110,45 +155,13 @@ export default function KeywordExtractorPage() {
         { keyword: '이직', searchVolume: 78600 },
         { keyword: '자기계발', searchVolume: 52100 },
         { keyword: '영어공부', searchVolume: 44300 },
-        { keyword: '주식투자', searchVolume: 98700 },
-        { keyword: '여행지추천', searchVolume: 71200 },
-        { keyword: 'AI', searchVolume: 312000 },
-        { keyword: '챗GPT', searchVolume: 189000 },
-        { keyword: '운동루틴', searchVolume: 36500 },
       ];
       const shuffled = [...realTrends].sort(() => Math.random() - 0.5).slice(0, 10);
       const withChange = shuffled.map(item => ({
         ...item,
-        change: Math.floor(Math.random() * 7) - 3, // -3 ~ +3
-      }));
-      setTrendingKeywords(withChange);
-
-      // 건강/의학/스포츠 키워드
-      const healthSports = [
-        { keyword: '다이어트', searchVolume: 245000 },
-        { keyword: '헬스장', searchVolume: 135000 },
-        { keyword: '필라테스', searchVolume: 89400 },
-        { keyword: 'PT', searchVolume: 67200 },
-        { keyword: '요가', searchVolume: 78900 },
-        { keyword: '홈트레이닝', searchVolume: 54300 },
-        { keyword: '크로스핏', searchVolume: 23400 },
-        { keyword: '수영', searchVolume: 98700 },
-        { keyword: '러닝', searchVolume: 76500 },
-        { keyword: '골프', searchVolume: 156000 },
-        { keyword: '테니스', searchVolume: 67800 },
-        { keyword: '등산', searchVolume: 112000 },
-        { keyword: '단백질보충제', searchVolume: 45600 },
-        { keyword: '비타민', searchVolume: 134000 },
-        { keyword: '허리통증', searchVolume: 89100 },
-      ];
-      const shuffledHealth = [...healthSports].sort(() => Math.random() - 0.5).slice(0, 10);
-      const healthWithChange = shuffledHealth.map(item => ({
-        ...item,
         change: Math.floor(Math.random() * 7) - 3,
       }));
-      setHealthKeywords(healthWithChange);
-    } catch (error) {
-      console.error('Failed to fetch trending:', error);
+      setTrendingKeywords(withChange);
     }
     setIsLoadingTrending(false);
   };
