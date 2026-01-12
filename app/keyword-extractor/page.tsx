@@ -7,7 +7,6 @@ import { AuthGuard } from '@/components/auth-guard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import {
@@ -20,11 +19,6 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowUpDown,
-  Settings,
-  Save,
-  ExternalLink,
-  Check,
-  Info,
   Sparkles,
   Target,
   Plus,
@@ -64,7 +58,7 @@ function KeywordExtractorContent() {
   const [results, setResults] = useState<KeywordResult[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('competitionScore' as SortKey);
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [showApiConfig, setShowApiConfig] = useState(false);
+  // API 설정 기능 비활성화 (향후 사용 예정)
   const [hasSearchVolume, setHasSearchVolume] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [totalAvailable, setTotalAvailable] = useState(0);
@@ -83,8 +77,10 @@ function KeywordExtractorContent() {
   }
   const [trendingKeywords, setTrendingKeywords] = useState<TrendingKeyword[]>([]);
   const [healthKeywords, setHealthKeywords] = useState<TrendingKeyword[]>([]);
+  const [nateKeywords, setNateKeywords] = useState<TrendingKeyword[]>([]);
+  const [zumKeywords, setZumKeywords] = useState<TrendingKeyword[]>([]);
   const [isLoadingTrending, setIsLoadingTrending] = useState(false);
-  const [trendingTab, setTrendingTab] = useState<'trend' | 'health'>('trend');
+  const [trendingTab, setTrendingTab] = useState<'trend' | 'health' | 'nate' | 'zum'>('trend');
 
   // Load usage on mount
   useEffect(() => {
@@ -104,7 +100,7 @@ function KeywordExtractorContent() {
         const data = await response.json();
         console.log('Trending keywords from crawling:', data);
 
-        // 크롤링된 키워드를 트렌드에 표시
+        // 크롤링된 키워드를 트렌드에 표시 (통합)
         if (data.keywords && data.keywords.length > 0) {
           const crawledKeywords = data.keywords.slice(0, 10).map((item: any) => ({
             keyword: item.keyword,
@@ -115,6 +111,26 @@ function KeywordExtractorContent() {
         } else {
           // 크롤링 실패 시 폴백 데이터
           throw new Error('No crawled keywords');
+        }
+
+        // 네이트 키워드 별도 저장
+        if (data.nateKeywords && data.nateKeywords.length > 0) {
+          const nateFormatted = data.nateKeywords.slice(0, 10).map((item: any) => ({
+            keyword: item.keyword,
+            searchVolume: Math.floor(Math.random() * 50000) + 10000,
+            change: Math.floor(Math.random() * 7) - 3,
+          }));
+          setNateKeywords(nateFormatted);
+        }
+
+        // 줌 키워드 별도 저장
+        if (data.zumKeywords && data.zumKeywords.length > 0) {
+          const zumFormatted = data.zumKeywords.slice(0, 10).map((item: any) => ({
+            keyword: item.keyword,
+            searchVolume: Math.floor(Math.random() * 50000) + 10000,
+            change: Math.floor(Math.random() * 7) - 3,
+          }));
+          setZumKeywords(zumFormatted);
         }
 
         // 건강/의학/스포츠 키워드는 기존 데이터 유지
@@ -181,17 +197,6 @@ function KeywordExtractorContent() {
     fetchTrendingKeywords();
   }, []);
 
-  const saveApiConfig = () => {
-    localStorage.setItem(API_CONFIG_KEY, JSON.stringify(apiConfig));
-    toast.success('API 설정이 저장되었습니다');
-    setShowApiConfig(false);
-  };
-
-  const clearApiConfig = () => {
-    setApiConfig({ apiKey: '', secretKey: '', customerId: '' });
-    localStorage.removeItem(API_CONFIG_KEY);
-    toast.success('API 설정이 초기화되었습니다');
-  };
 
   // CTR과 가치점수 계산 함수
   const enrichKeywords = (keywords: KeywordResult[]) => {
@@ -417,7 +422,6 @@ function KeywordExtractorContent() {
     );
   };
 
-  const isApiConfigured = apiConfig.apiKey && apiConfig.secretKey && apiConfig.customerId;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-white via-[#fff5f7] to-white py-8">
@@ -446,10 +450,6 @@ function KeywordExtractorContent() {
           )}
         </div>
 
-        {/* API Config Toggle - Hidden for now */}
-        {/* <Card className={`mb-6 border ${showApiConfig ? 'border-[#f72c5b]' : 'border-[#eeeeee]'} shadow-sm`}>
-          ...
-        </Card> */}
 
         {/* Search + Trending Keywords */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -491,7 +491,7 @@ function KeywordExtractorContent() {
           <Card className="border border-[#eeeeee] shadow-lg">
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   <button
                     onClick={() => setTrendingTab('trend')}
                     className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
@@ -501,7 +501,27 @@ function KeywordExtractorContent() {
                     }`}
                   >
                     <Flame className="w-3 h-3" />
-                    실시간
+                    통합
+                  </button>
+                  <button
+                    onClick={() => setTrendingTab('nate')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                      trendingTab === 'nate'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-[#f3f4f6] text-[#6b7280] hover:bg-[#e5e7eb]'
+                    }`}
+                  >
+                    네이트
+                  </button>
+                  <button
+                    onClick={() => setTrendingTab('zum')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                      trendingTab === 'zum'
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-[#f3f4f6] text-[#6b7280] hover:bg-[#e5e7eb]'
+                    }`}
+                  >
+                    줌
                   </button>
                   <button
                     onClick={() => setTrendingTab('health')}
@@ -512,7 +532,7 @@ function KeywordExtractorContent() {
                     }`}
                   >
                     <Target className="w-3 h-3" />
-                    건강/스포츠
+                    건강
                   </button>
                 </div>
                 <Button
@@ -528,42 +548,65 @@ function KeywordExtractorContent() {
             </CardHeader>
             <CardContent className="pt-0 px-4 pb-4">
               <div className="space-y-1">
-                {(trendingTab === 'trend' ? trendingKeywords : healthKeywords).map((trend, idx) => (
-                  <button
-                    key={trend.keyword}
-                    onClick={() => handleSearch(trend.keyword)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-[#f9fafb] rounded-md transition-colors group"
-                  >
-                    <span className={`w-5 h-5 flex items-center justify-center text-xs font-bold rounded ${
-                      idx < 3
-                        ? trendingTab === 'trend' ? 'bg-[#f72c5b] text-white' : 'bg-green-500 text-white'
-                        : 'bg-[#f3f4f6] text-[#6b7280]'
-                    }`}>
-                      {idx + 1}
-                    </span>
-                    <span className="flex-1 text-sm text-[#374151] group-hover:text-[#111111] truncate">
-                      {trend.keyword}
-                    </span>
-                    <span className="text-[10px] text-[#9ca3af] tabular-nums">
-                      {trend.searchVolume >= 100000
-                        ? `${Math.round(trend.searchVolume / 10000)}만`
-                        : trend.searchVolume >= 10000
-                        ? `${(trend.searchVolume / 10000).toFixed(1)}만`
-                        : trend.searchVolume.toLocaleString()}
-                    </span>
-                    <span className={`flex items-center text-[10px] w-6 justify-end ${
-                      trend.change > 0 ? 'text-red-500' : trend.change < 0 ? 'text-blue-500' : 'text-[#9ca3af]'
-                    }`}>
-                      {trend.change > 0 ? (
-                        <><TrendingUp className="w-2.5 h-2.5" />{trend.change}</>
-                      ) : trend.change < 0 ? (
-                        <><TrendingDown className="w-2.5 h-2.5" />{Math.abs(trend.change)}</>
-                      ) : (
-                        <Minus className="w-2.5 h-2.5" />
-                      )}
-                    </span>
-                  </button>
-                ))}
+                {(() => {
+                  const currentKeywords =
+                    trendingTab === 'trend' ? trendingKeywords :
+                    trendingTab === 'nate' ? nateKeywords :
+                    trendingTab === 'zum' ? zumKeywords :
+                    healthKeywords;
+
+                  const tabColor =
+                    trendingTab === 'trend' ? 'bg-[#f72c5b]' :
+                    trendingTab === 'nate' ? 'bg-blue-500' :
+                    trendingTab === 'zum' ? 'bg-orange-500' :
+                    'bg-green-500';
+
+                  if (currentKeywords.length === 0) {
+                    return (
+                      <div className="text-center py-4 text-sm text-[#9ca3af]">
+                        {trendingTab === 'nate' ? '네이트' : trendingTab === 'zum' ? '줌' : ''}
+                        {' '}키워드를 불러오는 중...
+                      </div>
+                    );
+                  }
+
+                  return currentKeywords.map((trend, idx) => (
+                    <button
+                      key={trend.keyword}
+                      onClick={() => handleSearch(trend.keyword)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-[#f9fafb] rounded-md transition-colors group"
+                    >
+                      <span className={`w-5 h-5 flex items-center justify-center text-xs font-bold rounded ${
+                        idx < 3
+                          ? `${tabColor} text-white`
+                          : 'bg-[#f3f4f6] text-[#6b7280]'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                      <span className="flex-1 text-sm text-[#374151] group-hover:text-[#111111] truncate">
+                        {trend.keyword}
+                      </span>
+                      <span className="text-[10px] text-[#9ca3af] tabular-nums">
+                        {trend.searchVolume >= 100000
+                          ? `${Math.round(trend.searchVolume / 10000)}만`
+                          : trend.searchVolume >= 10000
+                          ? `${(trend.searchVolume / 10000).toFixed(1)}만`
+                          : trend.searchVolume.toLocaleString()}
+                      </span>
+                      <span className={`flex items-center text-[10px] w-6 justify-end ${
+                        trend.change > 0 ? 'text-red-500' : trend.change < 0 ? 'text-blue-500' : 'text-[#9ca3af]'
+                      }`}>
+                        {trend.change > 0 ? (
+                          <><TrendingUp className="w-2.5 h-2.5" />{trend.change}</>
+                        ) : trend.change < 0 ? (
+                          <><TrendingDown className="w-2.5 h-2.5" />{Math.abs(trend.change)}</>
+                        ) : (
+                          <Minus className="w-2.5 h-2.5" />
+                        )}
+                      </span>
+                    </button>
+                  ));
+                })()}
               </div>
             </CardContent>
           </Card>

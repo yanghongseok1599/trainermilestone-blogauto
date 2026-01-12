@@ -110,6 +110,8 @@ export async function GET() {
 
     return NextResponse.json({
       keywords: allKeywords,
+      nateKeywords,
+      zumKeywords,
       sources: {
         nate: nateKeywords.length,
         zum: zumKeywords.length,
