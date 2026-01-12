@@ -2759,7 +2759,8 @@ export default function BeforeAfterPage() {
                 {/* 이전단계 버튼 */}
                 <div className="flex gap-1.5 mb-2">
                   <Button
-                    className="flex-1 h-8 bg-[#374151] hover:bg-[#4b5563] text-white text-sm"
+                    variant="outline"
+                    className="flex-1 h-8 text-sm border-[#eeeeee] hover:bg-gray-50"
                     onClick={undo}
                     disabled={historyIndex <= 0}
                     title="이전 단계 (Ctrl+Z)"
@@ -2772,21 +2773,23 @@ export default function BeforeAfterPage() {
                 {/* 이미지 삭제 버튼 */}
                 <div className="flex gap-1.5 mb-2">
                   <Button
-                    className="flex-1 h-8 bg-[#ef4444] hover:bg-[#dc2626] text-white text-sm"
+                    variant="outline"
+                    className="flex-1 h-8 text-sm border-[#eeeeee] hover:bg-gray-50"
                     onClick={deleteBeforeImage}
                     disabled={!beforeImage}
                     title="Before 이미지 삭제"
                   >
-                    <X className="w-3 h-3 mr-1" />
+                    <Trash2 className="w-3 h-3 mr-1" />
                     Before 삭제
                   </Button>
                   <Button
-                    className="flex-1 h-8 bg-[#ef4444] hover:bg-[#dc2626] text-white text-sm"
+                    variant="outline"
+                    className="flex-1 h-8 text-sm border-[#eeeeee] hover:bg-gray-50"
                     onClick={deleteAfterImage}
                     disabled={!afterImage}
                     title="After 이미지 삭제"
                   >
-                    <X className="w-3 h-3 mr-1" />
+                    <Trash2 className="w-3 h-3 mr-1" />
                     After 삭제
                   </Button>
                 </div>
@@ -2794,7 +2797,7 @@ export default function BeforeAfterPage() {
                 {/* 다운로드 버튼 */}
                 <div className="flex gap-1.5">
                   <Button
-                    className="flex-1 h-8 bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs"
+                    className="flex-1 h-8 bg-[#f72c5b] hover:bg-[#e0264f] text-white text-xs"
                     onClick={() => downloadImage('png')}
                     disabled={isGenerating || (!beforeImage && !afterImage)}
                   >
@@ -2806,7 +2809,7 @@ export default function BeforeAfterPage() {
                     PNG
                   </Button>
                   <Button
-                    className="flex-1 h-8 bg-[#10b981] hover:bg-[#059669] text-white text-xs"
+                    className="flex-1 h-8 bg-[#111111] hover:bg-[#333333] text-white text-xs"
                     onClick={() => downloadImage('jpg')}
                     disabled={isGenerating || (!beforeImage && !afterImage)}
                   >
@@ -2844,7 +2847,7 @@ export default function BeforeAfterPage() {
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
                 <CardTitle className="flex items-center gap-1 text-sm">
-                  <Settings className="w-3 h-3 text-[#8b5cf6]" />
+                  <Settings className="w-3 h-3 text-[#6b7280]" />
                   레이아웃
                 </CardTitle>
               </CardHeader>
@@ -2955,7 +2958,7 @@ export default function BeforeAfterPage() {
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
                 <CardTitle className="flex items-center gap-1 text-sm">
-                  <Scissors className="w-3 h-3 text-[#8b5cf6]" />
+                  <Scissors className="w-3 h-3 text-[#6b7280]" />
                   AI 배경 제거
                 </CardTitle>
               </CardHeader>
@@ -2966,7 +2969,8 @@ export default function BeforeAfterPage() {
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   <Button
-                    className="h-8 text-sm bg-[#8b5cf6] hover:bg-[#7c3aed] text-white"
+                    variant="outline"
+                    className="h-8 text-sm border-[#eeeeee] hover:bg-gray-50"
                     onClick={() => applyRemoveBackground('before')}
                     disabled={isRemovingBg || !beforeImage}
                   >
@@ -2978,7 +2982,8 @@ export default function BeforeAfterPage() {
                     Before
                   </Button>
                   <Button
-                    className="h-8 text-sm bg-[#8b5cf6] hover:bg-[#7c3aed] text-white"
+                    variant="outline"
+                    className="h-8 text-sm border-[#eeeeee] hover:bg-gray-50"
                     onClick={() => applyRemoveBackground('after')}
                     disabled={isRemovingBg || !afterImage}
                   >
@@ -2991,7 +2996,7 @@ export default function BeforeAfterPage() {
                   </Button>
                 </div>
                 <Button
-                  className="w-full h-8 text-sm bg-[#6d28d9] hover:bg-[#5b21b6] text-white"
+                  className="w-full h-8 text-sm bg-[#111111] hover:bg-[#333333] text-white"
                   onClick={() => applyRemoveBackground('both')}
                   disabled={isRemovingBg || (!beforeImage && !afterImage)}
                 >
@@ -3017,7 +3022,7 @@ export default function BeforeAfterPage() {
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
                 <CardTitle className="flex items-center gap-1 text-sm">
-                  <Palette className="w-3 h-3 text-[#f72c5b]" />
+                  <Palette className="w-3 h-3 text-[#6b7280]" />
                   아웃라인
                 </CardTitle>
               </CardHeader>
@@ -3028,7 +3033,7 @@ export default function BeforeAfterPage() {
                     variant={outline.enabled ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setOutline(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`h-8 text-sm px-2 ${outline.enabled ? 'bg-[#10b981] hover:bg-[#059669]' : ''}`}
+                    className={`h-8 text-sm px-2 ${outline.enabled ? 'bg-[#111111] hover:bg-[#333333]' : ''}`}
                   >
                     {outline.enabled ? 'ON' : 'OFF'}
                   </Button>
@@ -3105,8 +3110,8 @@ export default function BeforeAfterPage() {
                             key={value}
                             className={`flex-1 px-1 py-0.5 text-xs rounded transition-colors ${
                               outline.style === value
-                                ? 'bg-[#f72c5b] text-white'
-                                : 'bg-[#333] text-gray-300 hover:bg-[#444]'
+                                ? 'bg-[#111111] text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                             onClick={() => {
                               setOutline(prev => ({ ...prev, style: value }));
@@ -3134,7 +3139,7 @@ export default function BeforeAfterPage() {
                               setIsEraserMode(!isEraserMode);
                               if (!isEraserMode) setIsAreaExcludeMode(false);
                             }}
-                            className={`h-8 text-sm px-2 ${isEraserMode ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
+                            className={`h-8 text-sm px-2 ${isEraserMode ? 'bg-[#111111] hover:bg-[#333333]' : ''}`}
                           >
                             {isEraserMode ? 'ON' : 'OFF'}
                           </Button>
@@ -3179,13 +3184,13 @@ export default function BeforeAfterPage() {
                               setIsAreaExcludeMode(!isAreaExcludeMode);
                               if (!isAreaExcludeMode) setIsEraserMode(false);
                             }}
-                            className={`h-8 text-sm px-2 ${isAreaExcludeMode ? 'bg-purple-500 hover:bg-purple-600' : ''}`}
+                            className={`h-8 text-sm px-2 ${isAreaExcludeMode ? 'bg-[#111111] hover:bg-[#333333]' : ''}`}
                           >
                             {isAreaExcludeMode ? 'ON' : 'OFF'}
                           </Button>
                         </div>
                         {isAreaExcludeMode && (
-                          <p className="text-xs text-purple-600">
+                          <p className="text-xs text-gray-500">
                             아웃라인을 클릭하면 연결된 영역이 제외됩니다
                           </p>
                         )}
@@ -3234,7 +3239,7 @@ export default function BeforeAfterPage() {
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
                 <CardTitle className="flex items-center gap-1 text-sm">
-                  <Type className="w-3 h-3 text-[#f59e0b]" />
+                  <Type className="w-3 h-3 text-[#6b7280]" />
                   라벨
                 </CardTitle>
               </CardHeader>
@@ -3245,7 +3250,7 @@ export default function BeforeAfterPage() {
                     variant={labels.showLabels ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setLabels(prev => ({ ...prev, showLabels: !prev.showLabels }))}
-                    className={`h-8 text-sm px-2 ${labels.showLabels ? 'bg-[#f59e0b] hover:bg-[#d97706]' : ''}`}
+                    className={`h-8 text-sm px-2 ${labels.showLabels ? 'bg-[#111111] hover:bg-[#333333]' : ''}`}
                   >
                     {labels.showLabels ? 'ON' : 'OFF'}
                   </Button>
@@ -3288,7 +3293,7 @@ export default function BeforeAfterPage() {
                         variant={labels.showDate ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setLabels(prev => ({ ...prev, showDate: !prev.showDate }))}
-                        className={`h-8 text-sm px-2 ${labels.showDate ? 'bg-[#6b7280] hover:bg-[#4b5563]' : ''}`}
+                        className={`h-8 text-sm px-2 ${labels.showDate ? 'bg-[#111111] hover:bg-[#333333]' : ''}`}
                       >
                         {labels.showDate ? 'ON' : 'OFF'}
                       </Button>
@@ -3313,7 +3318,7 @@ export default function BeforeAfterPage() {
             <Card className="border-[#eeeeee] shadow-sm">
               <CardHeader className="pb-1 pt-2 px-2">
                 <CardTitle className="flex items-center gap-1 text-sm">
-                  <Stamp className="w-3 h-3 text-[#6366f1]" />
+                  <Stamp className="w-3 h-3 text-[#6b7280]" />
                   워터마크
                 </CardTitle>
               </CardHeader>
@@ -3324,7 +3329,7 @@ export default function BeforeAfterPage() {
                     variant={watermark.enabled ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setWatermark(prev => ({ ...prev, enabled: !prev.enabled }))}
-                    className={`h-8 text-sm px-2 ${watermark.enabled ? 'bg-[#6366f1] hover:bg-[#4f46e5]' : ''}`}
+                    className={`h-8 text-sm px-2 ${watermark.enabled ? 'bg-[#111111] hover:bg-[#333333]' : ''}`}
                   >
                     {watermark.enabled ? 'ON' : 'OFF'}
                   </Button>
