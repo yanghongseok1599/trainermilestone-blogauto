@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Copy, Check, Sparkles, Search, Wand2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { AuthGuard } from '@/components/auth-guard';
 
 // 프롬프트 데이터
 const promptData = [
@@ -64,7 +65,7 @@ const promptData = [
 
 const categories = ['전체', '피트니스', '비포애프터', 'PT센터', '운동 동작', '음식', '필라테스', '헬스장'];
 
-export default function PromptCollectionPage() {
+function PromptCollectionContent() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState('전체');
   const [searchQuery, setSearchQuery] = useState('');
@@ -224,5 +225,13 @@ export default function PromptCollectionPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PromptCollectionPage() {
+  return (
+    <AuthGuard>
+      <PromptCollectionContent />
+    </AuthGuard>
   );
 }

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { removeBackground as removeBackgroundML } from '@imgly/background-removal';
+import { AuthGuard } from '@/components/auth-guard';
 
 // 레이아웃 타입
 type LayoutType = 'horizontal' | 'vertical' | 'slider' | 'diagonal' | 'circle';
@@ -126,7 +127,7 @@ const OUTPUT_SIZES: OutputSize[] = [
   { width: 0, height: 0, label: '커스텀' },
 ];
 
-export default function BeforeAfterPage() {
+function BeforeAfterContent() {
   // 이미지 상태
   const [beforeImage, setBeforeImage] = useState<string | null>(null);
   const [afterImage, setAfterImage] = useState<string | null>(null);
@@ -3384,5 +3385,13 @@ export default function BeforeAfterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BeforeAfterPage() {
+  return (
+    <AuthGuard>
+      <BeforeAfterContent />
+    </AuthGuard>
   );
 }

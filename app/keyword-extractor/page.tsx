@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { checkAndIncrementUsage, getUsageToday } from '@/lib/usage-service';
+import { AuthGuard } from '@/components/auth-guard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,7 +56,7 @@ type SortOrder = 'asc' | 'desc';
 
 const API_CONFIG_KEY = 'blogbooster_naver_ads_api';
 
-export default function KeywordExtractorPage() {
+function KeywordExtractorContent() {
   const { user } = useAuth();
   const [keyword, setKeyword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -872,5 +873,13 @@ export default function KeywordExtractorPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function KeywordExtractorPage() {
+  return (
+    <AuthGuard>
+      <KeywordExtractorContent />
+    </AuthGuard>
   );
 }

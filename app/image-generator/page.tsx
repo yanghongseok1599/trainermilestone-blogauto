@@ -12,6 +12,7 @@ import { ArrowLeft, ImagePlus, Sparkles, Copy, Wand2, Trash2, Image, Loader2, Do
 import { toast } from 'sonner';
 import { parseImagePrompts, categoryStyles, type ParsedImagePrompt } from '@/lib/image-prompt-utils';
 import { useAppStore } from '@/lib/store';
+import { AuthGuard } from '@/components/auth-guard';
 
 type ApiProvider = 'openai' | 'gemini';
 
@@ -744,12 +745,14 @@ function ImageGeneratorContent() {
 
 export default function ImageGeneratorPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#f72c5b]"></div>
-      </div>
-    }>
-      <ImageGeneratorContent />
-    </Suspense>
+    <AuthGuard>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#f72c5b]"></div>
+        </div>
+      }>
+        <ImageGeneratorContent />
+      </Suspense>
+    </AuthGuard>
   );
 }
