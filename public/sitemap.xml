@@ -1,17 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:mobile="http://www.google.com/schemas/sitemap-mobile/1.0" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
-<url><loc>https://blogbooster.kr/apple-icon.png</loc><lastmod>2026-01-08T09:00:03.038Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/before-after</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/dashboard</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/exercise-gif</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/icon.png</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/image-generator</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/keyword-extractor</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/login</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/mypage</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/payment/fail</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/payment/success</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/pricing</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-<url><loc>https://blogbooster.kr/signup</loc><lastmod>2026-01-08T09:00:03.039Z</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://blogbooster.kr</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/keyword-extractor</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/dashboard</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/image-generator</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/before-after</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/exercise-gif</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/pricing</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/login</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/signup</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/privacy</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/terms</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://blogbooster.kr/usage-policy</loc>
+    <lastmod>2024-01-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
 </urlset>

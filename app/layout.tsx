@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/auth-context';
 import { Header } from '@/components/header';
+import { Footer } from '@/components/footer';
 
 const notoSansKR = Noto_Sans_KR({
   variable: '--font-noto-sans-kr',
@@ -12,7 +13,7 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://trainermilestone-blogbooster.vercel.app'),
+  metadataBase: new URL('https://blogbooster.kr'),
   title: {
     default: 'BlogBooster - 피트니스 블로그 자동화 시스템',
     template: '%s | BlogBooster',
@@ -31,8 +32,10 @@ export const metadata: Metadata = {
     '블로그 콘텐츠 생성',
     '피트니스 마케팅',
     '헬스장 홍보',
+    '황금키워드',
+    '키워드 추출기',
   ],
-  authors: [{ name: 'BlogBooster', url: 'https://trainermilestone-blogbooster.vercel.app' }],
+  authors: [{ name: 'BlogBooster', url: 'https://blogbooster.kr' }],
   creator: 'BlogBooster',
   publisher: 'BlogBooster',
   formatDetection: {
@@ -43,7 +46,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'ko_KR',
-    url: 'https://trainermilestone-blogbooster.vercel.app',
+    url: 'https://blogbooster.kr',
     siteName: 'BlogBooster',
     title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
     description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
@@ -86,7 +89,7 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   alternates: {
-    canonical: 'https://trainermilestone-blogbooster.vercel.app',
+    canonical: 'https://blogbooster.kr',
   },
   category: 'technology',
   verification: {
@@ -107,10 +110,13 @@ export default function RootLayout({
       <head>
         <meta name="naver-site-verification" content="7ac5ded04f31e967be7aa7b6ac67c1f75fa58645" />
       </head>
-      <body className={`${notoSansKR.variable} antialiased min-h-screen bg-white`}>
+      <body className={`${notoSansKR.variable} antialiased min-h-screen bg-white flex flex-col`}>
         <AuthProvider>
           <Header />
-          {children}
+          <div className="flex-1">
+            {children}
+          </div>
+          <Footer />
           <Toaster position="top-center" richColors />
         </AuthProvider>
       </body>
