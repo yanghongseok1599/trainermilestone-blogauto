@@ -278,13 +278,13 @@ export async function POST(request: NextRequest) {
 
     // 네이버 연관검색어 API로 추가 키워드 가져오기
     const relatedKeywordsFromNaver = await getNaverRelatedKeywords(keywords[0]);
-    const fallbackKeywords = generateRelatedKeywords(keywords[0]);
+    const generatedKeywords = generateRelatedKeywords(keywords[0]);
 
     // 네이버 연관검색어 + 생성한 키워드 결합 (중복 제거)
     const allRelatedKeywords = Array.from(new Set([
       keywords[0], // 원본 키워드
       ...relatedKeywordsFromNaver,
-      ...fallbackKeywords
+      ...generatedKeywords
     ]));
 
     console.log('Total related keywords:', allRelatedKeywords.length);
