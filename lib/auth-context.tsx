@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userRef = doc(db, 'users', user.uid);
           const userSnap = await getDoc(userRef);
           if (userSnap.exists() && userSnap.data().isBlocked) {
-            await signOut(auth);
+            await signOut(auth!);
             setUser(null);
             setLoading(false);
             return;
@@ -229,7 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      await signOut(auth);
+      await signOut(auth!);
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
