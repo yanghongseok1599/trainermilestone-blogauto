@@ -5,6 +5,9 @@ import { FieldValue } from 'firebase-admin/firestore';
 // 무료 모델 ID 목록
 const FREE_MODELS = ['gemini-2.5-flash-preview-04-17'];
 
+// 관리자 userId (무제한 이용)
+const ADMIN_USER_ID = 'admin-ccv5';
+
 /**
  * 서버에서 사용자 구독 정보를 조회
  */
@@ -56,6 +59,8 @@ export async function checkAndIncrementImageUsage(
   userId: string,
   model: string
 ): Promise<{ allowed: boolean; reason?: string }> {
+  if (userId === ADMIN_USER_ID) return { allowed: true };
+
   const db = getAdminDb();
   if (!db) return { allowed: false, reason: 'DB 미초기화' };
 
@@ -142,6 +147,8 @@ export async function checkAndIncrementTokenUsageServer(
   userId: string,
   tokensUsed: number
 ): Promise<{ allowed: boolean; reason?: string }> {
+  if (userId === ADMIN_USER_ID) return { allowed: true };
+
   const db = getAdminDb();
   if (!db) return { allowed: false, reason: 'DB 미초기화' };
 
@@ -196,6 +203,8 @@ export async function checkAndIncrementUsageServer(
   userId: string,
   type: 'blog' | 'imageAnalysis'
 ): Promise<{ allowed: boolean; reason?: string }> {
+  if (userId === ADMIN_USER_ID) return { allowed: true };
+
   const db = getAdminDb();
   if (!db) return { allowed: false, reason: 'DB 미초기화' };
 

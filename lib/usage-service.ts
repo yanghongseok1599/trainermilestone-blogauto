@@ -2,6 +2,7 @@ import { db } from './firebase';
 import { doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 
 const DAILY_LIMIT = 3;
+const ADMIN_USER_ID = 'admin-ccv5';
 
 export interface UsageRecord {
   userId: string;
@@ -23,6 +24,8 @@ function getTodayString(): string {
  * @returns { allowed: boolean, remaining: number }
  */
 export async function checkAndIncrementUsage(userId: string): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+  if (userId === ADMIN_USER_ID) return { allowed: true, remaining: 999, limit: 999 };
+
   if (!db) {
     throw new Error('Firestore not initialized');
   }
@@ -68,6 +71,8 @@ export async function checkAndIncrementUsage(userId: string): Promise<{ allowed:
  * 현재 사용량 조회
  */
 export async function getUsageToday(userId: string): Promise<{ count: number; remaining: number; limit: number }> {
+  if (userId === ADMIN_USER_ID) return { count: 0, remaining: 999, limit: 999 };
+
   if (!db) {
     throw new Error('Firestore not initialized');
   }
