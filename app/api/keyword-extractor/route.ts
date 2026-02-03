@@ -1,9 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { authenticateRequest } from '@/lib/api-auth';
 
-// 네이버 검색 API 인증 정보 (문서수 조회용)
-const NAVER_CLIENT_ID = 'rSdTHY4KsnCjj7s7oAwL';
-const NAVER_CLIENT_SECRET = 'LoCw_04IUC';
+// 네이버 블로그 검색 API 키 풀 (라운드로빈)
+interface NaverSearchKey {
+  clientId: string;
+  clientSecret: string;
+}
+
+function getNaverSearchKeys(): NaverSearchKey[] {
+  const keys: NaverSearchKey[] = [];
+
+  // 1번 키 (환경변수 → 하드코딩 폴백)
+  const id1 = process.env.NAVER_CLIENT_ID || 'rSdTHY4KsnCjj7s7oAwL';
+  const secret1 = process.env.NAVER_CLIENT_SECRET || 'LoCw_04IUC';
+  if (id1 && secret1) keys.push({ clientId: id1, clientSecret: secret1 });
+
+  // 2번 키
+  const id2 = process.env.NAVER_CLIENT_ID_2;
+  const secret2 = process.env.NAVER_CLIENT_SECRET_2;
+  if (id2 && secret2) keys.push({ clientId: id2, clientSecret: secret2 });
+
+  return keys;
+}
+
+// 네이버 광고 API 키 풀 (라운드로빈)
+interface NaverAdsKey {
+  apiKey: string;
+  secretKey: string;
+  customerId: string;
+}
+
+function getNaverAdsKeys(): NaverAdsKey[] {
+  const keys: NaverAdsKey[] = [];
+
+  // 1번 키
+  const api1 = process.env.NAVER_ADS_API_KEY;
+  const secret1 = process.env.NAVER_ADS_SECRET_KEY;
+  const customer1 = process.env.NAVER_ADS_CUSTOMER_ID;
+  if (api1 && secret1 && customer1) keys.push({ apiKey: api1, secretKey: secret1, customerId: customer1.replace(/-/g, '') });
+
+  // 2번 키
+  const api2 = process.env.NAVER_ADS_API_KEY_2;
+  const secret2 = process.env.NAVER_ADS_SECRET_KEY_2;
+  const customer2 = process.env.NAVER_ADS_CUSTOMER_ID_2;
+  if (api2 && secret2 && customer2) keys.push({ apiKey: api2, secretKey: secret2, customerId: customer2.replace(/-/g, '') });
+
+  return keys;
+}
+
+// 라운드로빈 카운터 (서버 프로세스 내 유지)
+let searchKeyIndex = 0;
+let adsKeyIndex = 0;
+
+function getNextSearchKey(): NaverSearchKey {
+  const keys = getNaverSearchKeys();
+  const key = keys[searchKeyIndex % keys.length];
+  searchKeyIndex++;
+  return key;
+}
+
+function getNextAdsKey(): NaverAdsKey | null {
+  const keys = getNaverAdsKeys();
+  if (keys.length === 0) return null;
+  const key = keys[adsKeyIndex % keys.length];
+  adsKeyIndex++;
+  return key;
+}
 
 interface KeywordResult {
   keyword: string;
@@ -76,12 +139,13 @@ function delay(ms: number): Promise<void> {
  */
 async function getDocumentCount(keyword: string): Promise<number> {
   try {
+    const searchKey = getNextSearchKey();
     const response = await fetch(
       `https://openapi.naver.com/v1/search/blog.json?query=${encodeURIComponent(keyword)}&display=1`,
       {
         headers: {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
+          'X-Naver-Client-Id': searchKey.clientId,
+          'X-Naver-Client-Secret': searchKey.clientSecret,
         },
       }
     );
@@ -255,6 +319,11 @@ function generateRelatedKeywords(mainKeyword: string): string[] {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // 인증 체크 (사이트 네이버 API 키 보호)
+    const authResult = await authenticateRequest(request, { userId: body.userId });
+    if ('error' in authResult) return authResult.error;
+
     const keyword = body.keyword?.trim();
     const apiKey = body.apiKey?.trim();
     const secretKey = body.secretKey?.trim();
@@ -276,6 +345,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '키워드를 입력해주세요' }, { status: 400 });
     }
 
+    // 네이버 광고 API 키 결정 (클라이언트 입력 → 서버 라운드로빈 순)
+    let resolvedApiKey = apiKey || '';
+    let resolvedSecretKey = secretKey || '';
+    let resolvedCustomerId = (customerId || '').replace(/-/g, '');
+
+    // 클라이언트가 키를 안 보냈으면 서버 키 풀에서 라운드로빈
+    if (!resolvedApiKey || !resolvedSecretKey || !resolvedCustomerId) {
+      const adsKey = getNextAdsKey();
+      if (adsKey) {
+        resolvedApiKey = adsKey.apiKey;
+        resolvedSecretKey = adsKey.secretKey;
+        resolvedCustomerId = adsKey.customerId;
+      }
+    }
+
     // 네이버 연관검색어 API로 추가 키워드 가져오기
     const relatedKeywordsFromNaver = await getNaverRelatedKeywords(keywords[0]);
     const generatedKeywords = generateRelatedKeywords(keywords[0]);
@@ -290,15 +374,56 @@ export async function POST(request: NextRequest) {
     console.log('Total related keywords:', allRelatedKeywords.length);
 
     // API 키가 있으면 네이버 광고 API 사용
-    // 네이버 광고 API는 여러 키워드를 줄바꿈으로 구분
-    const keywordsForApi = allRelatedKeywords.join('\n');
-    if (apiKey && secretKey && customerId) {
-      const adsResult = await getKeywordStats(keywordsForApi, apiKey, secretKey, customerId);
+    // 배치 방식: 원본 키워드 + 연관/생성 키워드를 5개씩 배치로 나눠서 API 호출
+    if (resolvedApiKey && resolvedSecretKey && resolvedCustomerId) {
+      // 1차: 원본 키워드로 API 호출
+      const keywordsForApi = keywords.slice(0, 5).join('\n');
+      const adsResult = await getKeywordStats(keywordsForApi, resolvedApiKey, resolvedSecretKey, resolvedCustomerId);
 
       if (!adsResult.error && adsResult.keywords && adsResult.keywords.length > 0) {
+        // 1차 결과의 키워드 수집 (중복 체크용)
+        const seenKeywords = new Set(adsResult.keywords.map(kw => kw.relKeyword));
+        const allApiKeywords = [...adsResult.keywords];
+
+        // 2차: 연관/생성 키워드를 배치로 나눠서 추가 API 호출
+        // 이미 API가 반환한 키워드는 제외
+        const additionalKeywords = allRelatedKeywords.filter(kw => !seenKeywords.has(kw));
+
+        // 5개씩 배치로 나누기 (최대 3배치 = 15개 추가 키워드 - 동시 사용자 대비)
+        const batches: string[][] = [];
+        for (let i = 0; i < Math.min(additionalKeywords.length, 15); i += 5) {
+          batches.push(additionalKeywords.slice(i, i + 5));
+        }
+
+        console.log(`Batch API calls: ${batches.length} batches for ${additionalKeywords.length} additional keywords`);
+
+        // 배치별 순차 호출 (Rate limit 방지, 키 라운드로빈)
+        for (const batch of batches) {
+          const batchHint = batch.join('\n');
+          // 배치마다 다른 키 사용 (라운드로빈)
+          const batchAdsKey = getNextAdsKey();
+          const batchApiKey = batchAdsKey?.apiKey || resolvedApiKey;
+          const batchSecretKey = batchAdsKey?.secretKey || resolvedSecretKey;
+          const batchCustomerId = batchAdsKey?.customerId || resolvedCustomerId;
+          const batchResult = await getKeywordStats(batchHint, batchApiKey, batchSecretKey, batchCustomerId);
+
+          if (!batchResult.error && batchResult.keywords) {
+            for (const kw of batchResult.keywords) {
+              if (!seenKeywords.has(kw.relKeyword)) {
+                seenKeywords.add(kw.relKeyword);
+                allApiKeywords.push(kw);
+              }
+            }
+          }
+          // 배치 간 200ms 딜레이
+          await delay(200);
+        }
+
+        console.log(`Total unique keywords after batching: ${allApiKeywords.length}`);
+
         // API 성공 - 검색량 데이터 포함
-        const totalAvailable = adsResult.keywords.length;
-        const keywordsToProcess = adsResult.keywords.slice(offset, offset + limit);
+        const totalAvailable = allApiKeywords.length;
+        const keywordsToProcess = allApiKeywords.slice(offset, offset + limit);
 
         // 더 이상 키워드가 없으면 빈 배열 반환
         if (keywordsToProcess.length === 0) {
@@ -316,7 +441,7 @@ export async function POST(request: NextRequest) {
           keywordsToProcess.map(kw => kw.relKeyword)
         );
 
-        const keywords: KeywordResult[] = keywordsToProcess.map((item, idx) => {
+        const resultKeywords: KeywordResult[] = keywordsToProcess.map((item, idx) => {
           const pcCount = normalizeCount(item.monthlyPcQcCnt);
           const mobileCount = normalizeCount(item.monthlyMobileQcCnt);
           const docCount = docCounts[idx];
@@ -333,8 +458,8 @@ export async function POST(request: NextRequest) {
           };
         });
 
-        // 총 검색량 기준 정렬 (가이드 문서처럼)
-        keywords.sort((a, b) => {
+        // 총 검색량 기준 정렬
+        resultKeywords.sort((a, b) => {
           if (b.competitionScore !== a.competitionScore) {
             return b.competitionScore - a.competitionScore;
           }
@@ -342,8 +467,8 @@ export async function POST(request: NextRequest) {
         });
 
         return NextResponse.json({
-          keywords,
-          total: keywords.length,
+          keywords: resultKeywords,
+          total: resultKeywords.length,
           totalAvailable,
           hasMore: offset + limit < totalAvailable,
           searchedKeyword: keyword,

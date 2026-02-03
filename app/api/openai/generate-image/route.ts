@@ -1,11 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { authenticateRequest } from '@/lib/api-auth';
+import { checkAndIncrementImageUsage } from '@/lib/server-usage';
 
 export async function POST(request: NextRequest) {
   try {
-    const { apiKey, prompt, model = 'gpt-image-1', size = '1024x1024', quality = 'standard' } = await request.json();
+    const body = await request.json();
+    const { apiKey, useSiteApi, userId, prompt, model = 'gpt-image-1', size = '1024x1024', quality = 'standard' } = body;
 
-    if (!apiKey) {
+    // 사이트 API 또는 사용자 API 키 결정
+    let resolvedApiKey = apiKey;
+    if (useSiteApi) {
+      // 사이트 API 사용 시 인증 + 사용량 체크
+      const authResult = await authenticateRequest(request, body);
+      if ('error' in authResult) return authResult.error;
+
+      const usageResult = await checkAndIncrementImageUsage(authResult.userId, model);
+      if (!usageResult.allowed) {
+        return NextResponse.json({ error: usageResult.reason }, { status: 429 });
+      }
+
+      resolvedApiKey = process.env.OPENAI_API_KEY;
+      if (!resolvedApiKey) {
+        return NextResponse.json({ error: '서버 API 키가 설정되지 않았습니다' }, { status: 500 });
+      }
+    }
+
+    if (!resolvedApiKey) {
       return NextResponse.json({ error: 'API 키가 필요합니다' }, { status: 400 });
     }
 
@@ -13,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '프롬프트가 필요합니다' }, { status: 400 });
     }
 
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({ apiKey: resolvedApiKey });
 
     // 모델별 설정
     const validModels = ['gpt-image-1', 'dall-e-3', 'dall-e-2'];

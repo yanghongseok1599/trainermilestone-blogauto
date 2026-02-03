@@ -44,13 +44,13 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60">
-      <div className="container mx-auto px-4 max-w-5xl">
+      <div className="container mx-auto px-2 max-w-6xl">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center">
+          <Link href="/" className="flex items-center mr-2">
             <Image
               src="/제목을 입력해주세요. (16).png"
-              alt="BlogBooster"
+              alt="트레이너 마일스톤 블로그 부스터"
               width={140}
               height={40}
               className="h-10 w-auto object-contain"
@@ -94,14 +94,29 @@ export function Header() {
               </Button>
             </Link>
 
-            {/* Before/After Generator Link */}
-            <Link href="/before-after">
+            {/* Before/After Generator Link - 곧출시 */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-[#9ca3af] cursor-not-allowed opacity-60"
+                disabled
+              >
+                비포애프터
+              </Button>
+              <span className="absolute -top-1 -right-2 px-1.5 py-0.5 text-[10px] font-bold bg-[#f72c5b] text-white rounded-full leading-none whitespace-nowrap">
+                곧출시
+              </span>
+            </div>
+
+            {/* Pricing Link */}
+            <Link href="/pricing">
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
               >
-                비포애프터
+                요금표
               </Button>
             </Link>
 
@@ -124,20 +139,22 @@ export function Header() {
               <Loader2 className="w-5 h-5 animate-spin text-[#6b7280]" />
             ) : user ? (
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#f5f5f5]">
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName || ''}
-                      className="w-6 h-6 rounded-full"
-                    />
-                  ) : (
-                    <User className="w-4 h-4 text-[#6b7280]" />
-                  )}
-                  <span className="text-sm text-[#111111]">
-                    {(user.displayName || user.email?.split('@')[0] || '').substring(0, 4)}
-                  </span>
-                </div>
+                {!isSuperAdmin && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#f5f5f5]">
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName || ''}
+                        className="w-6 h-6 rounded-full"
+                      />
+                    ) : (
+                      <User className="w-4 h-4 text-[#6b7280]" />
+                    )}
+                    <span className="text-sm text-[#111111]">
+                      {(user.displayName || user.email?.split('@')[0] || '').substring(0, 4)}
+                    </span>
+                  </div>
+                )}
                 <Link href="/mypage">
                   <Button
                     variant="ghost"

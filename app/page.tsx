@@ -333,7 +333,7 @@ export default function LandingPage() {
             <Sparkles className="w-4 h-4" />
           </p>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-4 tracking-tight">
-            BlogBooster
+            트레이너 마일스톤 블로그 부스터
           </h1>
           <div className="h-16 md:h-20 flex items-center justify-center">
             <p className="text-2xl md:text-3xl lg:text-4xl text-transparent bg-clip-text bg-gradient-to-r from-[#f72c5b] to-[#ff6b6b]">

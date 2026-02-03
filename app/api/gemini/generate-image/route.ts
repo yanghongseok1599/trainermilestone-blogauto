@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { authenticateRequest } from '@/lib/api-auth';
+import { checkAndIncrementImageUsage } from '@/lib/server-usage';
 
 // Imagen 모델 목록
 const IMAGEN_MODELS = [
@@ -10,14 +12,33 @@ const IMAGEN_MODELS = [
 
 // Gemini 이미지 생성 모델 목록
 const GEMINI_IMAGE_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.5-flash-preview-04-17',
 ];
 
 export async function POST(request: NextRequest) {
   try {
-    const { apiKey, prompt, model = 'gemini-2.0-flash-exp-image-generation' } = await request.json();
+    const body = await request.json();
+    const { apiKey, useSiteApi, userId, prompt, model = 'gemini-2.5-flash-preview-04-17' } = body;
 
-    if (!apiKey) {
+    // 사이트 API 또는 사용자 API 키 결정
+    let resolvedApiKey = apiKey;
+    if (useSiteApi) {
+      // 사이트 API 사용 시 인증 + 사용량 체크
+      const authResult = await authenticateRequest(request, body);
+      if ('error' in authResult) return authResult.error;
+
+      const usageResult = await checkAndIncrementImageUsage(authResult.userId, model);
+      if (!usageResult.allowed) {
+        return NextResponse.json({ error: usageResult.reason }, { status: 429 });
+      }
+
+      resolvedApiKey = process.env.GEMINI_API_KEY;
+      if (!resolvedApiKey) {
+        return NextResponse.json({ error: '서버 API 키가 설정되지 않았습니다' }, { status: 500 });
+      }
+    }
+
+    if (!resolvedApiKey) {
       return NextResponse.json({ error: 'API 키가 필요합니다' }, { status: 400 });
     }
 
@@ -25,11 +46,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '프롬프트가 필요합니다' }, { status: 400 });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenerativeAI(resolvedApiKey);
 
     // Imagen 모델 사용
     if (IMAGEN_MODELS.includes(model)) {
-      return await generateWithImagen(genAI, apiKey, prompt, model);
+      return await generateWithImagen(genAI, resolvedApiKey, prompt, model);
     }
 
     // Gemini 이미지 생성 모델 사용
@@ -65,7 +86,7 @@ export async function POST(request: NextRequest) {
 
 // Gemini 이미지 생성
 async function generateWithGemini(genAI: GoogleGenerativeAI, prompt: string, modelName: string) {
-  // Gemini 2.0 Flash experimental with image generation
+  // Gemini 2.5 Flash with image generation
   const model = genAI.getGenerativeModel({
     model: modelName,
   });

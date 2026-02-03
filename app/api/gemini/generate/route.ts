@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/api-auth';
+import { checkAndIncrementTokenUsageServer } from '@/lib/server-usage';
 
 // 마크다운 및 금지 패턴 자동 제거 함수
 function cleanMarkdownAndForbiddenPatterns(text: string): string {
@@ -47,19 +49,39 @@ function cleanMarkdownAndForbiddenPatterns(text: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { apiKey, prompt, images, ragContext, liteMode } = await request.json();
+    const { prompt, images, ragContext, liteMode, optimizedMode, apiKey: clientApiKey } = await request.json();
 
+    const useSiteApi = !clientApiKey;
+    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'API 키가 필요합니다' }, { status: 400 });
+      return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
     }
 
     if (!prompt) {
       return NextResponse.json({ error: '프롬프트가 필요합니다' }, { status: 400 });
     }
 
-    // RAG 컨텍스트가 있는 경우 프롬프트에 추가 (라이트 모드에서는 스킵)
+    // 사이트 API 사용 시 인증 + 토큰 한도 사전 체크
+    let authenticatedUserId: string | null = null;
+    if (useSiteApi) {
+      const authResult = await authenticateRequest(request, { userId: undefined });
+      if ('error' in authResult) return authResult.error;
+      authenticatedUserId = authResult.userId;
+
+      // 예상 토큰(프롬프트 길이 기반) 사전 체크 - 실제 사용량은 응답 후 기록
+      const estimatedInputTokens = Math.ceil(prompt.length / 2);
+      const preCheck = await checkAndIncrementTokenUsageServer(authenticatedUserId, 0);
+      if (!preCheck.allowed) {
+        return NextResponse.json({ error: preCheck.reason }, { status: 429 });
+      }
+    }
+
+    // 토큰 절약 모드 결정 (liteMode > optimizedMode > 일반)
+    const isTokenSavingMode = liteMode || optimizedMode;
+
+    // RAG 컨텍스트가 있는 경우 프롬프트에 추가 (토큰 절약 모드에서는 스킵)
     let enhancedPrompt = prompt;
-    if (ragContext && !liteMode) {
+    if (ragContext && !isTokenSavingMode) {
       enhancedPrompt = `당신은 SEO 최적화된 피트니스/헬스 블로그 글을 작성하는 전문가입니다.
 
 ${ragContext}
@@ -75,8 +97,8 @@ ${prompt}`;
       parts: [{ text: enhancedPrompt }]
     }];
 
-    // Add images if present (라이트 모드에서는 이미지도 스킵하여 토큰 절약)
-    if (images && images.length > 0 && !liteMode) {
+    // Add images if present (토큰 절약 모드에서는 이미지도 스킵)
+    if (images && images.length > 0 && !isTokenSavingMode) {
       images.forEach((img: { mimeType: string; data: string }) => {
         contents[0].parts.push({
           inline_data: {
@@ -87,18 +109,18 @@ ${prompt}`;
       });
     }
 
-    // 출력 토큰 설정 (라이트 모드: 4096, 일반 모드: 8192)
-    const maxOutputTokens = liteMode ? 4096 : 8192;
+    // 출력 토큰 설정 (라이트: 4096, 최적화: 6144, 일반: 8192)
+    const maxOutputTokens = liteMode ? 4096 : optimizedMode ? 6144 : 8192;
 
-    // Free tier models - 할당량이 넉넉한 순서로 배열 (라이트 모드에서는 flash만 사용)
-    const models = liteMode
-      ? ['gemini-1.5-flash', 'gemini-2.0-flash-exp']
-      : ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro', 'gemini-2.0-flash-exp'];
+    // Free tier models - 토큰 절약 모드에서는 flash만 사용
+    const models = isTokenSavingMode
+      ? ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']
+      : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro'];
 
     let lastError = '';
     let isQuotaError = false;
 
-    console.log(`Generating with liteMode=${liteMode}, maxOutputTokens=${maxOutputTokens}`);
+    console.log(`Generating with liteMode=${liteMode}, optimizedMode=${optimizedMode}, maxOutputTokens=${maxOutputTokens}`);
 
     for (const model of models) {
       try {
@@ -134,6 +156,13 @@ ${prompt}`;
         const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (rawText) {
           console.log(`Success with ${model}`);
+
+          // 사이트 API 사용 시 실제 토큰 사용량 기록
+          if (useSiteApi && authenticatedUserId) {
+            const estimatedTokens = Math.ceil((prompt.length + rawText.length) / 2);
+            await checkAndIncrementTokenUsageServer(authenticatedUserId, estimatedTokens);
+          }
+
           // 마크다운 및 금지 패턴 후처리 제거
           const cleanedText = cleanMarkdownAndForbiddenPatterns(rawText);
           return NextResponse.json({ content: cleanedText });

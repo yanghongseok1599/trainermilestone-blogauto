@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/api-auth';
 
 const NAVER_CLIENT_ID = 'NEFXuvwLuzt101nnOdBQ';
 const NAVER_CLIENT_SECRET = 'UgDqM_16Sb';
 
 export async function POST(request: NextRequest) {
   try {
-    const { query } = await request.json();
+    const body = await request.json();
+    const { query } = body;
+
+    // 인증 체크
+    const authResult = await authenticateRequest(request, { userId: body.userId });
+    if ('error' in authResult) return authResult.error;
 
     if (!query) {
       return NextResponse.json({ error: '검색어를 입력해주세요' }, { status: 400 });

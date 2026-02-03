@@ -20,7 +20,7 @@ export default function UsagePolicyPage() {
           </Link>
           <h1 className="text-3xl font-bold text-[#111111] mb-2">서비스 이용 정책</h1>
           <p className="text-[#6b7280]">
-            BlogBooster 서비스의 안정적인 운영을 위한 이용 정책입니다
+            트레이너 마일스톤 블로그 부스터 서비스의 안정적인 운영을 위한 이용 정책입니다
           </p>
         </div>
 
@@ -192,7 +192,7 @@ export default function UsagePolicyPage() {
 
         <div className="mt-8 text-center text-sm text-[#9ca3af]">
           <p>이 정책은 서비스 개선을 위해 사전 공지 없이 변경될 수 있습니다</p>
-          <p className="mt-2">문의: trainermilestone@gmail.com</p>
+          <p className="mt-2">문의: info@trainer_milestone.com</p>
         </div>
       </div>
     </div>

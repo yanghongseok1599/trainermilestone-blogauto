@@ -13,8 +13,9 @@ import {
   updateProfile,
   browserPopupRedirectResolver,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
+import { logActivity } from './activity-log';
 
 // 관리자 계정 설정
 const ADMIN_CREDENTIALS = {
@@ -29,7 +30,6 @@ interface AuthContextType {
   loading: boolean;
   isSuperAdmin: boolean; // 시스템 관리자 (ccv5)
   signInWithGoogle: () => Promise<void>;
-  signInWithKakao: () => void;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signInAsAdmin: (username: string, password: string) => boolean;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 관리자용 가상 유저 객체 생성
       const adminUser = {
         uid: 'admin-ccv5',
-        email: 'admin@blogbooster.kr',
+        email: 'admin@trainermilestone.com',
         displayName: '관리자',
         photoURL: null,
       } as User;
@@ -81,6 +81,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     handleRedirectResult();
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user && db) {
+        // 차단된 사용자 체크
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists() && userSnap.data().isBlocked) {
+            await signOut(auth);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // 체크 실패 시 통과 허용
+        }
+      }
       setUser(user);
       setLoading(false);
     });
@@ -94,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const userRef = doc(db, 'users', user.uid);
     const userSnap = await getDoc(userRef);
+    const now = new Date();
 
     if (!userSnap.exists()) {
       await setDoc(userRef, {
@@ -103,10 +119,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         photoURL: user.photoURL,
         createdAt: serverTimestamp(),
         lastLoginAt: serverTimestamp(),
+        loginHistory: [Timestamp.fromDate(now)],
       });
     } else {
+      // 최근 5회 접속 기록 유지
+      const data = userSnap.data();
+      const history: Timestamp[] = data.loginHistory || [];
+      history.push(Timestamp.fromDate(now));
+      // 최근 5개만 유지
+      const trimmed = history.slice(-5);
+
       await setDoc(userRef, {
         lastLoginAt: serverTimestamp(),
+        loginHistory: trimmed,
       }, { merge: true });
     }
   };
@@ -119,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Try popup first
       const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       await saveUserToFirestore(result.user);
+      logActivity(result.user.uid, 'login', 'Google 로그인');
     } catch (error: unknown) {
       const firebaseError = error as { code?: string; message?: string };
       console.error('Google sign in error:', firebaseError);
@@ -154,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
       await saveUserToFirestore(result.user);
+      logActivity(result.user.uid, 'login', '이메일 로그인');
     } catch (error) {
       console.error('Email sign in error:', error);
       throw error;
@@ -168,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 관리자용 가상 유저 객체 생성
       const adminUser = {
         uid: 'admin-ccv5',
-        email: 'admin@blogbooster.kr',
+        email: 'admin@trainermilestone.com',
         displayName: '관리자',
         photoURL: null,
       } as User;
@@ -176,21 +203,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     }
     return false;
-  };
-
-  // 카카오 로그인
-  const signInWithKakao = () => {
-    const KAKAO_REST_API_KEY = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY;
-    const REDIRECT_URI = typeof window !== 'undefined'
-      ? `${window.location.origin}/api/auth/kakao/callback`
-      : '';
-
-    if (!KAKAO_REST_API_KEY) {
-      throw new Error('카카오 API 키가 설정되지 않았습니다.');
-    }
-
-    const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_REST_API_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code`;
-    window.location.href = kakaoAuthUrl;
   };
 
   const signUpWithEmail = async (email: string, password: string, name: string) => {
@@ -231,7 +243,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isSuperAdmin,
         signInWithGoogle,
-        signInWithKakao,
         signInWithEmail,
         signInAsAdmin,
         signUpWithEmail,

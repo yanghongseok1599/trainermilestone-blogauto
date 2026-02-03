@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/api-auth';
+import { checkAndIncrementTokenUsageServer } from '@/lib/server-usage';
 
 // thinking 블록을 제거하는 함수 (OpenAI API 에러 방지)
 function removeThinkingBlocks(messages: any[]): any[] {
@@ -61,7 +63,26 @@ function cleanMarkdownAndForbiddenPatterns(text: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { apiKey, prompt, images, messages: previousMessages, ragContext } = await request.json();
+    const { prompt, images, messages: previousMessages, ragContext, apiKey: clientApiKey } = await request.json();
+
+    const useSiteApi = !clientApiKey;
+    const apiKey = clientApiKey || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'OPENAI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
+    }
+
+    // 사이트 API 사용 시 인증 + 토큰 한도 사전 체크
+    let authenticatedUserId: string | null = null;
+    if (useSiteApi) {
+      const authResult = await authenticateRequest(request, { userId: undefined });
+      if ('error' in authResult) return authResult.error;
+      authenticatedUserId = authResult.userId;
+
+      const preCheck = await checkAndIncrementTokenUsageServer(authenticatedUserId, 0);
+      if (!preCheck.allowed) {
+        return NextResponse.json({ error: preCheck.reason }, { status: 429 });
+      }
+    }
 
     let messages: any[];
 
@@ -146,6 +167,13 @@ ${ragContext}
     }
 
     const rawText = data.choices?.[0]?.message?.content || '';
+
+    // 사이트 API 사용 시 실제 토큰 사용량 기록
+    if (useSiteApi && authenticatedUserId) {
+      const tokensUsed = data.usage?.total_tokens || Math.ceil((prompt.length + rawText.length) / 2);
+      await checkAndIncrementTokenUsageServer(authenticatedUserId, tokensUsed);
+    }
+
     // 마크다운 및 금지 패턴 후처리 제거
     const cleanedText = cleanMarkdownAndForbiddenPatterns(rawText);
     return NextResponse.json({ content: cleanedText });

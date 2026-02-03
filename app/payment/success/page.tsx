@@ -189,7 +189,7 @@ function PaymentSuccessContent() {
           <div className="bg-[#f5f5f5] rounded-lg p-4">
             <p className="text-sm text-[#6b7280] mb-1">구매 플랜</p>
             <p className="text-lg font-bold text-[#111111]">
-              BlogBooster {orderName} 플랜
+              트레이너 마일스톤 블로그 부스터 {orderName} 플랜
             </p>
           </div>
           <p className="text-[#6b7280]">

@@ -13,10 +13,10 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://blogbooster.kr'),
+  metadataBase: new URL('https://trainermilestone-blogbooster.vercel.app'),
   title: {
-    default: 'BlogBooster - 피트니스 블로그 자동화 시스템',
-    template: '%s | BlogBooster',
+    default: '트레이너 마일스톤 블로그 부스터 - 피트니스 블로그 자동화 시스템',
+    template: '%s | 트레이너 마일스톤 블로그 부스터',
   },
   description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스, 요가 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
   keywords: [
@@ -35,9 +35,9 @@ export const metadata: Metadata = {
     '황금키워드',
     '키워드 추출기',
   ],
-  authors: [{ name: 'BlogBooster', url: 'https://blogbooster.kr' }],
-  creator: 'BlogBooster',
-  publisher: 'BlogBooster',
+  authors: [{ name: '트레이너 마일스톤 블로그 부스터', url: 'https://trainermilestone-blogbooster.vercel.app' }],
+  creator: '트레이너 마일스톤 블로그 부스터',
+  publisher: '트레이너 마일스톤 블로그 부스터',
   formatDetection: {
     email: false,
     address: false,
@@ -46,25 +46,25 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'ko_KR',
-    url: 'https://blogbooster.kr',
-    siteName: 'BlogBooster',
-    title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
+    url: 'https://trainermilestone-blogbooster.vercel.app',
+    siteName: '트레이너 마일스톤 블로그 부스터',
+    title: '트레이너 마일스톤 블로그 부스터 - 피트니스 블로그 자동화 시스템',
     description: 'AI 기반 SEO 최적화 블로그 자동 생성. 헬스장, PT샵, 필라테스 등 피트니스 업종 전문 블로그 콘텐츠를 AI가 자동으로 생성합니다.',
     images: [
       {
         url: '/3.png',
         width: 1200,
         height: 630,
-        alt: 'BlogBooster - 피트니스 블로그 자동화',
+        alt: '트레이너 마일스톤 블로그 부스터 - 피트니스 블로그 자동화',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'BlogBooster - 피트니스 블로그 자동화 시스템',
+    title: '트레이너 마일스톤 블로그 부스터 - 피트니스 블로그 자동화 시스템',
     description: 'AI 기반 SEO 최적화 블로그 자동 생성',
     images: ['/3.png'],
-    creator: '@blogbooster',
+    creator: '@trainermilestone',
   },
   robots: {
     index: true,
@@ -89,11 +89,11 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   alternates: {
-    canonical: 'https://blogbooster.kr',
+    canonical: 'https://trainermilestone-blogbooster.vercel.app',
   },
   category: 'technology',
   verification: {
-    google: 'google-site-verification-code',
+    google: 'ULrbCZA1O6k1gKttO1b84SmVd_rFYYgGdWa0cPbZAIg',
     other: {
       'naver-site-verification': '7ac5ded04f31e967be7aa7b6ac67c1f75fa58645',
     },

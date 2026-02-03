@@ -1,6 +1,6 @@
 {
-  "name": "BlogBooster",
-  "short_name": "BlogBooster",
+  "name": "트레이너 마일스톤 블로그 부스터",
+  "short_name": "블로그 부스터",
   "description": "AI 기반 피트니스 블로그 자동화 시스템",
   "start_url": "/",
   "display": "standalone",
