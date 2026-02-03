@@ -201,12 +201,35 @@ function KeywordExtractorContent() {
   // CTR과 가치점수 계산 함수
   const enrichKeywords = (keywords: KeywordResult[]) => {
     return keywords.map((kw: KeywordResult) => {
-      const ctr = kw.docCount > 0 && kw.totalSearchCount > 0
-        ? Math.min(100, Math.round((kw.totalSearchCount / kw.docCount) * 10) / 10)
-        : 0;
-      const valueScore = kw.totalSearchCount > 0
-        ? Math.min(100, Math.round((kw.totalSearchCount * ctr) / 1000 * 10) / 10)
-        : kw.docCount > 0 ? Math.min(100, Math.round(10000 / kw.docCount * 10) / 10) : 0;
+      // 클릭률: 검색량 대비 문서수 경쟁 비율 (로그 스케일)
+      // 검색량이 많고 문서수가 적을수록 높은 클릭률
+      let ctr = 0;
+      if (kw.docCount > 0 && kw.totalSearchCount > 0) {
+        const ratio = kw.totalSearchCount / kw.docCount;
+        // 로그 스케일로 변환하여 0~100 범위로 정규화
+        // ratio가 1 이상이면 50점 이상, 0.01이면 약 0점, 10이면 약 100점
+        ctr = Math.min(100, Math.round(Math.max(0, (Math.log10(ratio) + 2) * 25) * 10) / 10);
+      } else if (kw.totalSearchCount > 0 && kw.docCount === 0) {
+        ctr = 100; // 문서가 없는데 검색량이 있으면 최고 기회
+      }
+
+      // 가치점수: 검색량, 경쟁강도, 문서수를 종합 평가 (0~100)
+      let valueScore = 0;
+      if (kw.totalSearchCount > 0) {
+        // 검색량 점수 (0~40): 로그 스케일 (10=10점, 100=20점, 1000=30점, 10000=40점)
+        const searchScore = Math.min(40, Math.log10(Math.max(1, kw.totalSearchCount)) * 10);
+        // 경쟁도 점수 (0~30): 경쟁강도 점수 활용
+        const compScore = (kw.competitionScore / 100) * 30;
+        // 기회 점수 (0~30): 검색량 대비 문서수 비율
+        const opportunityScore = kw.docCount > 0
+          ? Math.min(30, Math.max(0, (Math.log10(kw.totalSearchCount / kw.docCount) + 2) * 7.5))
+          : 30;
+        valueScore = Math.round((searchScore + compScore + opportunityScore) * 10) / 10;
+      } else if (kw.docCount > 0) {
+        // 검색량 없을 때는 문서수 기반 경쟁도만 평가
+        valueScore = Math.min(100, Math.round(Math.max(0, (4 - Math.log10(kw.docCount)) * 10) * 10) / 10);
+      }
+
       return { ...kw, ctr, valueScore };
     });
   };
@@ -263,6 +286,7 @@ function KeywordExtractorContent() {
           customerId: apiConfig.customerId,
           offset: 0,
           limit: 50,
+          userId: user?.uid,
         }),
       });
 
@@ -283,6 +307,13 @@ function KeywordExtractorContent() {
 
         const moreText = data.hasMore ? ` (총 ${data.totalAvailable}개 중 50개)` : '';
         toast.success(`${data.keywords.length}개의 연관 키워드를 찾았습니다${moreText}`);
+
+        // 활동 기록
+        if (user) {
+          import('@/lib/activity-log').then(({ logActivity }) => {
+            logActivity(user.uid, 'keyword_search', `"${kw}" 검색 → ${data.keywords.length}개 결과`);
+          });
+        }
 
         if (!data.hasSearchVolume && apiConfig.apiKey) {
           toast.info('API 인증 실패로 문서수만 표시됩니다', { duration: 5000 });
@@ -313,6 +344,7 @@ function KeywordExtractorContent() {
           customerId: apiConfig.customerId,
           offset: currentOffset,
           limit: 50,
+          userId: user?.uid,
         }),
       });
 
@@ -810,22 +842,26 @@ function KeywordExtractorContent() {
 
         {/* Extended Keywords & Long-tail Keywords */}
         {results.length > 0 && (() => {
-          // 확장키워드 필터링 - 검색량 높은 키워드 10개
+          // 확장키워드 필터링 - 검색량/가치점수 높은 키워드 10개
           const extendedKeywords = sortedResults
-            .filter(r => r.totalSearchCount >= 1000 || (r.docCount > 0 && r.valueScore >= 30))
+            .filter(r => r.keyword !== searchedKeyword.replace(/\s+/g, ''))
+            .filter(r => r.totalSearchCount >= 100 || (r.docCount > 0 && r.valueScore >= 15))
+            .sort((a, b) => b.totalSearchCount - a.totalSearchCount || b.valueScore - a.valueScore)
             .slice(0, 10);
           const extendedKeywordSet = new Set(extendedKeywords.map(k => k.keyword));
 
-          // 롱테일키워드 필터링 - 더 긴 키워드 10개
+          // 롱테일키워드 필터링 - 더 긴/구체적인 키워드 10개
           const baseKeywordLength = searchedKeyword.replace(/\s+/g, '').length;
           const longTailKeywords = sortedResults
             .filter(r => {
-              // 경쟁 낮음 또는 문서수 5000 미만
-              if (r.competition !== '낮음' && r.docCount >= 5000) return false;
-              // 더 긴 키워드 (기본 키워드보다 4글자 이상 길거나 띄어쓰기 포함)
+              if (r.keyword === searchedKeyword.replace(/\s+/g, '')) return false;
+              if (extendedKeywordSet.has(r.keyword)) return false;
+              // 경쟁 낮음/중간 또는 문서수 30000 미만
+              if (r.competition === '높음' && r.docCount >= 30000) return false;
+              // 더 긴 키워드 (기본 키워드보다 2글자 이상 길거나 띄어쓰기 포함)
               const kwLength = r.keyword.replace(/\s+/g, '').length;
-              const isLonger = kwLength >= baseKeywordLength + 4;
-              const hasSpace = r.keyword.includes(' ') || r.keyword.length > baseKeywordLength + 3;
+              const isLonger = kwLength >= baseKeywordLength + 2;
+              const hasSpace = r.keyword.includes(' ');
               return isLonger || hasSpace;
             })
             .sort((a, b) => a.docCount - b.docCount)

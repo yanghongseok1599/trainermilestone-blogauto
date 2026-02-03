@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const adminSession = localStorage.getItem(ADMIN_SESSION_KEY);
     if (adminSession === 'true') {
       setIsSuperAdmin(true);
+      document.cookie = 'admin_uid=admin-ccv5; path=/; max-age=86400; SameSite=Lax';
       // 관리자용 가상 유저 객체 생성
       const adminUser = {
         uid: 'admin-ccv5',
@@ -191,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInAsAdmin = (username: string, password: string): boolean => {
     if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
       localStorage.setItem(ADMIN_SESSION_KEY, 'true');
+      document.cookie = 'admin_uid=admin-ccv5; path=/; max-age=86400; SameSite=Lax';
       setIsSuperAdmin(true);
       // 관리자용 가상 유저 객체 생성
       const adminUser = {
@@ -222,12 +224,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     // 관리자 세션 클리어
     localStorage.removeItem(ADMIN_SESSION_KEY);
+    document.cookie = 'admin_uid=; path=/; max-age=0';
+    const wasAdmin = isSuperAdmin;
     setIsSuperAdmin(false);
+    setUser(null);
 
-    if (!auth) {
-      setUser(null);
+    // 관리자는 Firebase 인증을 사용하지 않으므로 signOut 불필요
+    if (wasAdmin || !auth) {
       return;
     }
+
     try {
       await signOut(auth!);
     } catch (error) {
