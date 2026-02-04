@@ -169,16 +169,30 @@ export function StepImageUpload() {
             }),
           });
 
-          // 429 → 재시도
+          // 429 → 에러 상세 로깅 후 재시도
           if (response.status === 429) {
-            console.warn(`Image ${i + 1} got 429, retry ${retry + 1}/${MAX_CLIENT_RETRIES}`);
+            try {
+              const errData = await response.json();
+              console.warn(`Image ${i + 1} got 429 (retry ${retry + 1}/${MAX_CLIENT_RETRIES}):`, errData.detail || errData.error);
+              if (retry === MAX_CLIENT_RETRIES - 1) {
+                toast.error(`이미지 ${i + 1} 분석 실패: ${errData.detail || errData.error || 'API 한도 초과'}`);
+              }
+            } catch {
+              console.warn(`Image ${i + 1} got 429, retry ${retry + 1}/${MAX_CLIENT_RETRIES}`);
+            }
             continue;
           }
 
           if (!response.ok) {
-            const statusText = response.status === 413
-              ? '이미지가 너무 큽니다. 더 작은 이미지를 사용해주세요.'
-              : `서버 오류 (${response.status})`;
+            let statusText = `서버 오류 (${response.status})`;
+            if (response.status === 413) {
+              statusText = '이미지가 너무 큽니다. 더 작은 이미지를 사용해주세요.';
+            } else {
+              try {
+                const errData = await response.json();
+                statusText = errData.detail || errData.error || statusText;
+              } catch { /* ignore */ }
+            }
             updateImageAnalysis(img.id, `분석 실패: ${statusText}`);
             success = true; // 에러지만 재시도 불필요
             continue;

@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_2,
       process.env.GEMINI_API_KEY_3,
-    ].filter((k): k is string => !!k?.trim());
-    const apiKeys = clientApiKey ? [clientApiKey] : siteApiKeys;
+    ].filter((k): k is string => !!k?.trim()).map(k => k.trim());
+    const apiKeys = clientApiKey ? [clientApiKey.trim()] : siteApiKeys;
     if (apiKeys.length === 0) {
       return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
     }
@@ -141,9 +141,17 @@ ${prompt}`;
         );
 
         if (response.status === 429) {
+          const errBody = await response.text();
           isQuotaError = true;
-          lastError = 'API 요청 한도 초과';
-          console.warn(`Gemini key ${i + 1}/${apiKeys.length} rate limited`);
+          lastError = `API 요청 한도 초과 (${errBody.slice(0, 200)})`;
+          console.warn(`Gemini key ${i + 1}/${apiKeys.length} rate limited:`, errBody.slice(0, 300));
+          continue;
+        }
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          console.error(`Gemini key ${i + 1} HTTP ${response.status}:`, errBody);
+          lastError = `HTTP ${response.status}: ${errBody.slice(0, 200)}`;
           continue;
         }
 

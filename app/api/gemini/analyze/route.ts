@@ -25,9 +25,9 @@ export async function POST(request: NextRequest) {
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_2,
       process.env.GEMINI_API_KEY_3,
-    ].filter((k): k is string => !!k?.trim());
+    ].filter((k): k is string => !!k?.trim()).map(k => k.trim());
 
-    const apiKeys = clientApiKey ? [clientApiKey] : siteApiKeys;
+    const apiKeys = clientApiKey ? [clientApiKey.trim()] : siteApiKeys;
     if (apiKeys.length === 0) {
       return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
     }
@@ -107,10 +107,19 @@ ${businessContext}${userContext}
           }
         );
 
-        // 429 → 다음 API 키 시도
+        // 429 → 상세 에러 로깅 후 다음 API 키 시도
         if (response.status === 429) {
-          console.warn(`Gemini key ${i + 1}/${apiKeys.length} rate limited (429)`);
-          lastError = 'API 요청 한도 초과';
+          const errBody = await response.text();
+          console.warn(`Gemini key ${i + 1}/${apiKeys.length} rate limited (429):`, errBody);
+          lastError = `API 요청 한도 초과 (${errBody.slice(0, 200)})`;
+          continue;
+        }
+
+        // 비정상 상태코드 상세 로깅
+        if (!response.ok) {
+          const errBody = await response.text();
+          console.error(`Gemini key ${i + 1} HTTP ${response.status}:`, errBody);
+          lastError = `HTTP ${response.status}: ${errBody.slice(0, 200)}`;
           continue;
         }
 
@@ -147,10 +156,11 @@ ${businessContext}${userContext}
       }
     }
 
-    // 모든 키 실패 → 429 반환 (클라이언트가 긴 딜레이로 재시도)
+    // 모든 키 실패 → 에러 상세와 함께 반환
+    const isRateLimit = lastError.includes('한도') || lastError.includes('429') || lastError.includes('quota') || lastError.includes('rate');
     return NextResponse.json(
-      { error: lastError || '분석 실패', retryable: true },
-      { status: 429 }
+      { error: lastError || '분석 실패', retryable: isRateLimit, detail: lastError },
+      { status: isRateLimit ? 429 : 500 }
     );
 
   } catch (error: unknown) {

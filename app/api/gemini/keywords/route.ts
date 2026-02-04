@@ -11,8 +11,8 @@ export async function POST(request: NextRequest) {
       process.env.GEMINI_API_KEY,
       process.env.GEMINI_API_KEY_2,
       process.env.GEMINI_API_KEY_3,
-    ].filter((k): k is string => !!k?.trim());
-    const apiKeys = clientApiKey ? [clientApiKey] : siteApiKeys;
+    ].filter((k): k is string => !!k?.trim()).map(k => k.trim());
+    const apiKeys = clientApiKey ? [clientApiKey.trim()] : siteApiKeys;
     if (apiKeys.length === 0) {
       return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
     }
@@ -78,7 +78,16 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
         );
 
         if (response.status === 429) {
-          lastError = 'API 요청 한도 초과';
+          const errBody = await response.text();
+          lastError = `API 요청 한도 초과 (${errBody.slice(0, 200)})`;
+          console.warn(`Gemini keywords key ${i + 1} rate limited:`, errBody.slice(0, 300));
+          continue;
+        }
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          console.error(`Gemini keywords key ${i + 1} HTTP ${response.status}:`, errBody);
+          lastError = `HTTP ${response.status}: ${errBody.slice(0, 200)}`;
           continue;
         }
 
