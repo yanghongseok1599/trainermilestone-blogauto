@@ -260,40 +260,61 @@ export function StepImageUpload() {
     };
 
     // 이미지 분석 완료 후 자동으로 키워드/제목 생성
-    if (mainKeyword.trim()) {
-      try {
-        const kwEndpoint = apiProvider === 'gemini' ? '/api/gemini/keywords' : '/api/openai/keywords';
-        const categoryName = category === '기타' && customCategoryName ? customCategoryName : category;
-        const analysisSummary = buildAnalysisSummary(analysisResults);
-        const kwResponse = await fetch(kwEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders },
-          body: JSON.stringify({
-            mainKeyword,
-            category: categoryName,
-            businessName,
-            imageContext: imageAnalysisContext || '',
-            imageAnalysis: analysisSummary,
-            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
-          }),
-        });
-        const kwData = await kwResponse.json();
-        if (!kwData.error) {
-          // 보조 키워드: 3개로 패딩
-          const sub = Array.isArray(kwData.subKeywords) ? kwData.subKeywords.map(String) : [];
-          while (sub.length < 3) sub.push('');
-          setSubKeywords(sub.slice(0, 3));
+    if (mainKeyword.trim() && analysisResults.length > 0) {
+      const kwEndpoint = apiProvider === 'gemini' ? '/api/gemini/keywords' : '/api/openai/keywords';
+      const categoryName = category === '기타' && customCategoryName ? customCategoryName : category;
+      const analysisSummary = buildAnalysisSummary(analysisResults);
+      const kwBody = {
+        mainKeyword,
+        category: categoryName,
+        businessName,
+        imageContext: imageAnalysisContext || '',
+        imageAnalysis: analysisSummary,
+        ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+      };
 
-          // 테일 키워드: 3개로 패딩
-          const tail = Array.isArray(kwData.tailKeywords) ? kwData.tailKeywords.map(String) : [];
-          while (tail.length < 3) tail.push('');
-          setTailKeywords(tail.slice(0, 3));
+      // 이미지 분석 직후 API 한도 방지를 위해 10초 대기 후 최대 2회 시도
+      let kwSuccess = false;
+      for (let kwRetry = 0; kwRetry < 2 && !kwSuccess; kwRetry++) {
+        try {
+          const waitSec = kwRetry === 0 ? 10 : 30;
+          toast.info(`키워드 자동 생성 중... (${waitSec}초 대기)`);
+          await new Promise(r => setTimeout(r, waitSec * 1000));
 
-          if (kwData.titles?.length > 0) setCustomTitle(kwData.titles[0]);
-          toast.success('키워드와 제목이 자동 생성되었습니다');
+          const kwResponse = await fetch(kwEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify(kwBody),
+          });
+
+          if (kwResponse.status === 429) {
+            console.warn(`Keyword generation 429, retry ${kwRetry + 1}/2`);
+            continue;
+          }
+
+          const kwData = await kwResponse.json();
+          if (!kwData.error) {
+            const sub = Array.isArray(kwData.subKeywords) ? kwData.subKeywords.map(String) : [];
+            while (sub.length < 3) sub.push('');
+            setSubKeywords(sub.slice(0, 3));
+
+            const tail = Array.isArray(kwData.tailKeywords) ? kwData.tailKeywords.map(String) : [];
+            while (tail.length < 3) tail.push('');
+            setTailKeywords(tail.slice(0, 3));
+
+            if (kwData.titles?.length > 0) setCustomTitle(kwData.titles[0]);
+            toast.success('키워드와 제목이 자동 생성되었습니다');
+            kwSuccess = true;
+          } else {
+            console.error('키워드 생성 에러:', kwData.error);
+            toast.error(`키워드 생성 실패: ${kwData.error}`);
+          }
+        } catch (kwError) {
+          console.error('키워드 자동 생성 실패:', kwError);
         }
-      } catch (kwError) {
-        console.error('키워드 자동 생성 실패:', kwError);
+      }
+      if (!kwSuccess) {
+        toast.error('키워드 자동 생성에 실패했습니다. 다음 단계에서 직접 입력해주세요.');
       }
     }
   };
