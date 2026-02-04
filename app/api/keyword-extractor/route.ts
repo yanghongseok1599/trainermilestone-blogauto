@@ -35,15 +35,15 @@ function getNaverAdsKeys(): NaverAdsKey[] {
   const keys: NaverAdsKey[] = [];
 
   // 1번 키
-  const api1 = process.env.NAVER_ADS_API_KEY;
-  const secret1 = process.env.NAVER_ADS_SECRET_KEY;
-  const customer1 = process.env.NAVER_ADS_CUSTOMER_ID;
+  const api1 = process.env.NAVER_ADS_API_KEY?.trim();
+  const secret1 = process.env.NAVER_ADS_SECRET_KEY?.trim();
+  const customer1 = process.env.NAVER_ADS_CUSTOMER_ID?.trim();
   if (api1 && secret1 && customer1) keys.push({ apiKey: api1, secretKey: secret1, customerId: customer1.replace(/-/g, '') });
 
   // 2번 키
-  const api2 = process.env.NAVER_ADS_API_KEY_2;
-  const secret2 = process.env.NAVER_ADS_SECRET_KEY_2;
-  const customer2 = process.env.NAVER_ADS_CUSTOMER_ID_2;
+  const api2 = process.env.NAVER_ADS_API_KEY_2?.trim();
+  const secret2 = process.env.NAVER_ADS_SECRET_KEY_2?.trim();
+  const customer2 = process.env.NAVER_ADS_CUSTOMER_ID_2?.trim();
   if (api2 && secret2 && customer2) keys.push({ apiKey: api2, secretKey: secret2, customerId: customer2.replace(/-/g, '') });
 
   return keys;
