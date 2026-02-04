@@ -133,9 +133,9 @@ export function StepImageUpload() {
     const analysisResults: { analysis: string; analysisJson?: Record<string, unknown> }[] = [];
     const authHeaders = await getAuthHeaders();
 
-    const MAX_CLIENT_RETRIES = 3;
-    // 재시도 대기 시간: 15초, 30초 (rate limit 리셋 대기)
-    const RETRY_DELAYS = [15000, 30000];
+    const MAX_CLIENT_RETRIES = 2;
+    // 재시도 대기 시간: 30초 (rate limit 리셋 대기 - Gemini free tier는 분당 10회 제한)
+    const RETRY_DELAYS = [30000];
 
     for (let i = 0; i < images.length; i++) {
       // 이미지 간 5초 딜레이 (Gemini API rate limit 방지)
@@ -171,14 +171,16 @@ export function StepImageUpload() {
 
           // 429 → 에러 상세 로깅 후 재시도
           if (response.status === 429) {
+            let errDetail = 'API 요청 한도 초과';
             try {
               const errData = await response.json();
-              console.warn(`Image ${i + 1} got 429 (retry ${retry + 1}/${MAX_CLIENT_RETRIES}):`, errData.detail || errData.error);
-              if (retry === MAX_CLIENT_RETRIES - 1) {
-                toast.error(`이미지 ${i + 1} 분석 실패: ${errData.detail || errData.error || 'API 한도 초과'}`);
-              }
-            } catch {
-              console.warn(`Image ${i + 1} got 429, retry ${retry + 1}/${MAX_CLIENT_RETRIES}`);
+              errDetail = errData.detail || errData.error || errDetail;
+            } catch { /* ignore */ }
+            console.warn(`Image ${i + 1} got 429 (retry ${retry + 1}/${MAX_CLIENT_RETRIES}):`, errDetail);
+            if (retry === MAX_CLIENT_RETRIES - 1) {
+              updateImageAnalysis(img.id, `분석 실패: ${errDetail}`);
+              toast.error(`이미지 ${i + 1}: ${errDetail}`);
+              success = true; // 더 이상 재시도 안 함
             }
             continue;
           }
