@@ -220,8 +220,8 @@ export function StepImageUpload() {
       }
     }
 
-    setIsAnalyzing(false);
     if (analysisResults.length === 0) {
+      setIsAnalyzing(false);
       toast.error('이미지 분석에 실패했습니다. 다시 시도해주세요.');
     } else if (analysisResults.length < images.length) {
       toast.warning(`${analysisResults.length}/${images.length}개 이미지 분석 완료 (일부 실패)`);
@@ -273,11 +273,11 @@ export function StepImageUpload() {
         ...(teamApiKey ? { apiKey: teamApiKey } : {}),
       };
 
-      // 이미지 분석 직후 API 한도 방지를 위해 10초 대기 후 최대 2회 시도
+      // API 한도 방지를 위해 5초 대기 후 최대 2회 시도
       let kwSuccess = false;
       for (let kwRetry = 0; kwRetry < 2 && !kwSuccess; kwRetry++) {
         try {
-          const waitSec = kwRetry === 0 ? 10 : 30;
+          const waitSec = kwRetry === 0 ? 5 : 20;
           toast.info(`키워드 자동 생성 중... (${waitSec}초 대기)`);
           await new Promise(r => setTimeout(r, waitSec * 1000));
 
@@ -290,6 +290,13 @@ export function StepImageUpload() {
           if (kwResponse.status === 429) {
             console.warn(`Keyword generation 429, retry ${kwRetry + 1}/2`);
             continue;
+          }
+
+          if (!kwResponse.ok) {
+            const errData = await kwResponse.json().catch(() => ({ error: `HTTP ${kwResponse.status}` }));
+            console.error('키워드 생성 에러:', errData.error);
+            toast.error(`키워드 생성 실패: ${errData.error}`);
+            break;
           }
 
           const kwData = await kwResponse.json();
@@ -317,6 +324,8 @@ export function StepImageUpload() {
         toast.error('키워드 자동 생성에 실패했습니다. 다음 단계에서 직접 입력해주세요.');
       }
     }
+
+    setIsAnalyzing(false);
   };
 
   return (
@@ -333,7 +342,7 @@ export function StepImageUpload() {
             </div>
             <div className="text-center">
               <p className="text-lg font-semibold text-[#111111]">AI가 이미지를 분석하고 있습니다</p>
-              <p className="text-sm text-[#6b7280] mt-1">잠시만 기다려주세요...</p>
+              <p className="text-sm text-[#6b7280] mt-1">분석 완료 후 키워드도 자동 생성됩니다</p>
             </div>
             <div className="flex gap-1">
               <div className="w-2 h-2 rounded-full bg-[#f72c5b] animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -463,9 +472,19 @@ export function StepImageUpload() {
                     <X className="w-4 h-4" />
                   </button>
                   {img.analysis && (
-                    <div className="absolute inset-0 bg-[#f72c5b]/20 flex items-center justify-center">
-                      <span className="text-xs font-medium bg-[#f72c5b] text-white px-3 py-1 rounded-full shadow-lg">
-                        분석완료
+                    <div className={cn(
+                      "absolute inset-0 flex items-center justify-center",
+                      img.analysis.startsWith('분석 실패') || img.analysis.startsWith('분석 오류')
+                        ? "bg-red-500/20"
+                        : "bg-[#f72c5b]/20"
+                    )}>
+                      <span className={cn(
+                        "text-xs font-medium text-white px-3 py-1 rounded-full shadow-lg",
+                        img.analysis.startsWith('분석 실패') || img.analysis.startsWith('분석 오류')
+                          ? "bg-red-500"
+                          : "bg-[#f72c5b]"
+                      )}>
+                        {img.analysis.startsWith('분석 실패') || img.analysis.startsWith('분석 오류') ? '분석실패' : '분석완료'}
                       </span>
                     </div>
                   )}

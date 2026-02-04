@@ -192,20 +192,40 @@ export function StepGenerate() {
       }
 
       const authHeaders = await getAuthHeaders();
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({
-          prompt,
-          ragContext,
-          ...(teamApiKey ? { apiKey: teamApiKey } : {}),
-        }),
-      });
 
-      const data = await response.json();
+      // 블로그 생성도 429 대비 최대 2회 시도
+      let data: { content?: string; error?: string } = {};
+      for (let genRetry = 0; genRetry < 2; genRetry++) {
+        if (genRetry > 0) {
+          toast.info('API 한도 초과로 20초 후 재시도합니다...');
+          await new Promise(r => setTimeout(r, 20000));
+        }
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            prompt,
+            ragContext,
+            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+          }),
+        });
+
+        if (response.status === 429) {
+          console.warn(`Blog generation 429, retry ${genRetry + 1}/2`);
+          continue;
+        }
+
+        data = await response.json();
+        break;
+      }
 
       if (data.error) {
         throw new Error(data.error);
+      }
+
+      if (!data.content) {
+        throw new Error('생성된 콘텐츠가 없습니다. 다시 시도해주세요.');
       }
 
       // 후처리 검증
@@ -234,7 +254,7 @@ export function StepGenerate() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다';
 
-      if (errorMessage.toLowerCase().includes('할당량') || errorMessage.toLowerCase().includes('quota')) {
+      if (errorMessage.toLowerCase().includes('할당량') || errorMessage.toLowerCase().includes('quota') || errorMessage.includes('한도') || errorMessage.includes('429')) {
         setShowQuotaError(true);
       } else {
         toast.error('생성 실패: ' + errorMessage);
