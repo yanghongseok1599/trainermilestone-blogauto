@@ -21,6 +21,41 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
 
+/**
+ * 이미지를 Canvas로 리사이즈 & 압축하여 base64 반환
+ * 최대 1200px, JPEG quality 0.7 → Vercel 4.5MB 제한 내 유지
+ */
+function compressImage(file: File, maxSize = 1200, quality = 0.7): Promise<{ dataUrl: string; base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      let { width, height } = img;
+      if (width > maxSize || height > maxSize) {
+        if (width > height) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas context failed')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      const base64 = dataUrl.split(',')[1];
+      resolve({ dataUrl, base64, mimeType: 'image/jpeg' });
+    };
+    img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error('Image load failed')); };
+    const objectUrl = URL.createObjectURL(file);
+    img.src = objectUrl;
+  });
+}
+
 export function StepImageUpload() {
   const { images, apiProvider, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customCategoryName, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCurrentStep, setSubKeywords, setTailKeywords, setCustomTitle } = useAppStore();
   const { user, getAuthHeaders } = useAuth();
@@ -39,23 +74,23 @@ export function StepImageUpload() {
     }
   };
 
-  const handleFiles = useCallback((files: FileList) => {
-    Array.from(files).forEach((file) => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const dataUrl = e.target?.result as string;
-          addImage({
-            id: crypto.randomUUID(),
-            file,
-            dataUrl,
-            base64: dataUrl.split(',')[1],
-            mimeType: file.type,
-          });
-        };
-        reader.readAsDataURL(file);
+  const handleFiles = useCallback(async (files: FileList) => {
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const compressed = await compressImage(file);
+        addImage({
+          id: crypto.randomUUID(),
+          file,
+          dataUrl: compressed.dataUrl,
+          base64: compressed.base64,
+          mimeType: compressed.mimeType,
+        });
+      } catch (err) {
+        console.error('Image compression failed:', err);
+        toast.error(`이미지 압축 실패: ${file.name}`);
       }
-    });
+    }
   }, [addImage]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -118,6 +153,13 @@ export function StepImageUpload() {
           }),
         });
 
+        if (!response.ok) {
+          const statusText = response.status === 413
+            ? '이미지가 너무 큽니다. 더 작은 이미지를 사용해주세요.'
+            : `서버 오류 (${response.status})`;
+          updateImageAnalysis(img.id, `분석 실패: ${statusText}`);
+          continue;
+        }
         const data = await response.json();
         if (data.analysis) {
           updateImageAnalysis(img.id, data.analysis, data.analysisJson || undefined);
@@ -132,7 +174,13 @@ export function StepImageUpload() {
     }
 
     setIsAnalyzing(false);
-    toast.success('이미지 분석이 완료되었습니다');
+    if (analysisResults.length === 0) {
+      toast.error('이미지 분석에 실패했습니다. 다시 시도해주세요.');
+    } else if (analysisResults.length < images.length) {
+      toast.warning(`${analysisResults.length}/${images.length}개 이미지 분석 완료 (일부 실패)`);
+    } else {
+      toast.success('이미지 분석이 완료되었습니다');
+    }
 
     // 이미지 분석 결과를 사람이 읽을 수 있는 요약으로 변환
     const buildAnalysisSummary = (results: typeof analysisResults): string => {
