@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -136,16 +136,135 @@ function getPersonaTargetRecommendation(category: FitnessCategory, targetAudienc
   };
 }
 
+import { ImageData } from '@/types';
+
+// 이미지 분석 결과를 사람이 읽을 수 있는 요약으로 변환
+function buildAnalysisSummary(images: ImageData[]): string {
+  return images
+    .filter(img => img.analysis && !img.analysis.startsWith('분석 실패') && !img.analysis.startsWith('분석 오류'))
+    .map((img, idx) => {
+      const j = img.analysisJson;
+      if (j) {
+        const lines: string[] = [`[사진${idx + 1}]`];
+        if (j.placeType) lines.push(`장소: ${j.placeType}`);
+        if (j.equipment.length > 0) {
+          lines.push(`기구: ${j.equipment.map(e => e.count ? `${e.name} ${e.count}대` : e.name).join(', ')}`);
+        }
+        if (j.spaceSize) lines.push(`규모: ${j.spaceSize}`);
+        if (j.people?.exists && j.people.description) lines.push(`인물: ${j.people.description}`);
+        if (j.textFound.length > 0) {
+          lines.push(`텍스트: ${j.textFound.map(t => t.raw).join(' / ')}`);
+        }
+        if (j.brandLogo.length > 0) lines.push(`브랜드: ${j.brandLogo.join(', ')}`);
+        if (j.mood?.impression) lines.push(`분위기: ${j.mood.impression}`);
+        if (j.claimSupport) lines.push(`활용: ${j.claimSupport}`);
+        return lines.join(', ');
+      }
+      return `[사진${idx + 1}] ${(img.analysis || '').slice(0, 300)}`;
+    }).join('\n');
+}
+
 export function StepGenerate() {
   const store = useAppStore();
   const { user, getAuthHeaders } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false);
   const [showQuotaError, setShowQuotaError] = useState(false);
+  const keywordGenRef = useRef(false);
 
   // 페르소나 & 타겟 추천
   const personaTargetRec = useMemo(() => {
     return getPersonaTargetRecommendation(store.category, store.targetAudience);
   }, [store.category, store.targetAudience]);
+
+  // 키워드 자동 생성 함수
+  const generateKeywords = useCallback(async () => {
+    if (!store.mainKeyword.trim()) return;
+
+    setIsGeneratingKeywords(true);
+    try {
+      let teamApiKey = '';
+      if (user) {
+        try {
+          const membership = await getMyTeamMembership(user.uid);
+          if (membership) {
+            const ownerSettings = await getTeamOwnerApiSettings(membership.ownerId);
+            if (ownerSettings?.apiKey) teamApiKey = ownerSettings.apiKey;
+          }
+        } catch { /* ignore */ }
+      }
+
+      const authHeaders = await getAuthHeaders();
+      const kwEndpoint = store.apiProvider === 'gemini' ? '/api/gemini/keywords' : '/api/openai/keywords';
+      const categoryName = store.category === '기타' && store.customCategoryName ? store.customCategoryName : store.category;
+      const analysisSummary = buildAnalysisSummary(store.images);
+
+      // 최대 2회 시도
+      for (let retry = 0; retry < 2; retry++) {
+        if (retry > 0) {
+          toast.info('키워드 생성 재시도 중... (15초 대기)');
+          await new Promise(r => setTimeout(r, 15000));
+        }
+
+        const kwResponse = await fetch(kwEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            mainKeyword: store.mainKeyword,
+            category: categoryName,
+            businessName: store.businessName,
+            imageContext: store.imageAnalysisContext || '',
+            imageAnalysis: analysisSummary,
+            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+          }),
+        });
+
+        if (kwResponse.status === 429) {
+          console.warn(`Keyword gen 429, retry ${retry + 1}/2`);
+          continue;
+        }
+
+        if (!kwResponse.ok) {
+          const errData = await kwResponse.json().catch(() => ({ error: `HTTP ${kwResponse.status}` }));
+          toast.error(`키워드 생성 실패: ${errData.error}`);
+          break;
+        }
+
+        const kwData = await kwResponse.json();
+        if (!kwData.error) {
+          const sub = Array.isArray(kwData.subKeywords) ? kwData.subKeywords.map(String) : [];
+          while (sub.length < 3) sub.push('');
+          store.setSubKeywords(sub.slice(0, 3));
+
+          const tail = Array.isArray(kwData.tailKeywords) ? kwData.tailKeywords.map(String) : [];
+          while (tail.length < 3) tail.push('');
+          store.setTailKeywords(tail.slice(0, 3));
+
+          if (kwData.titles?.length > 0) store.setCustomTitle(kwData.titles[0]);
+          toast.success('키워드와 제목이 자동 생성되었습니다');
+          setIsGeneratingKeywords(false);
+          return;
+        } else {
+          toast.error(`키워드 생성 실패: ${kwData.error}`);
+          break;
+        }
+      }
+    } catch (err) {
+      console.error('키워드 생성 실패:', err);
+    }
+    setIsGeneratingKeywords(false);
+    toast.error('키워드 자동 생성 실패. 아래에서 직접 입력하거나 재시도 버튼을 눌러주세요.');
+  }, [store, user, getAuthHeaders]);
+
+  // step 2 진입 시 키워드가 비어있으면 자동 생성
+  useEffect(() => {
+    if (keywordGenRef.current) return;
+    const hasKeywords = store.subKeywords.some(k => k.trim());
+    if (!hasKeywords && store.mainKeyword.trim()) {
+      keywordGenRef.current = true;
+      generateKeywords();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -415,10 +534,29 @@ export function StepGenerate() {
 
         {/* Keyword Editing Section */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-            <Edit3 className="w-4 h-4" />
-            키워드 수정 (생성 전 수정 가능)
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+              <Edit3 className="w-4 h-4" />
+              키워드 수정 (생성 전 수정 가능)
+            </h3>
+            {isGeneratingKeywords ? (
+              <span className="text-xs text-[#f72c5b] flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                키워드 자동 생성 중...
+              </span>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-[#f72c5b] hover:bg-[#f72c5b]/10 h-7 px-2"
+                onClick={() => { keywordGenRef.current = false; generateKeywords(); }}
+                disabled={isGenerating}
+              >
+                <Sparkles className="w-3 h-3 mr-1" />
+                AI 키워드 생성
+              </Button>
+            )}
+          </div>
 
           {/* Main Keyword */}
           <div className="space-y-2">

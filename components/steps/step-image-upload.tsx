@@ -221,108 +221,11 @@ export function StepImageUpload() {
     }
 
     if (analysisResults.length === 0) {
-      setIsAnalyzing(false);
       toast.error('이미지 분석에 실패했습니다. 다시 시도해주세요.');
     } else if (analysisResults.length < images.length) {
       toast.warning(`${analysisResults.length}/${images.length}개 이미지 분석 완료 (일부 실패)`);
     } else {
       toast.success('이미지 분석이 완료되었습니다');
-    }
-
-    // 이미지 분석 결과를 사람이 읽을 수 있는 요약으로 변환
-    const buildAnalysisSummary = (results: typeof analysisResults): string => {
-      return results.map((r, idx) => {
-        const j = r.analysisJson as Record<string, unknown> | undefined;
-        if (j) {
-          const lines: string[] = [`[사진${idx + 1}]`];
-          if (j.placeType) lines.push(`장소: ${j.placeType}`);
-          if (Array.isArray(j.equipment) && j.equipment.length > 0) {
-            lines.push(`기구: ${j.equipment.map((e: { name: string; count?: number }) => e.count ? `${e.name} ${e.count}대` : e.name).join(', ')}`);
-          }
-          if (j.spaceSize) lines.push(`규모: ${j.spaceSize}`);
-          const people = j.people as { exists?: boolean; description?: string } | undefined;
-          if (people?.exists && people.description) lines.push(`인물: ${people.description}`);
-          if (Array.isArray(j.textFound) && j.textFound.length > 0) {
-            lines.push(`사진 속 텍스트: ${j.textFound.map((t: { raw: string }) => t.raw).join(' / ')}`);
-          }
-          if (Array.isArray(j.numbersFound) && j.numbersFound.length > 0) lines.push(`숫자/가격: ${j.numbersFound.join(', ')}`);
-          if (Array.isArray(j.certificates) && j.certificates.length > 0) {
-            lines.push(`자격증: ${j.certificates.map((c: { name: string; issuer: string }) => `${c.name}(${c.issuer})`).join(', ')}`);
-          }
-          if (Array.isArray(j.brandLogo) && j.brandLogo.length > 0) lines.push(`브랜드: ${j.brandLogo.join(', ')}`);
-          const mood = j.mood as { impression?: string } | undefined;
-          if (mood?.impression) lines.push(`분위기: ${mood.impression}`);
-          if (j.claimSupport) lines.push(`활용 포인트: ${j.claimSupport}`);
-          return lines.join(', ');
-        }
-        return `[사진${idx + 1}] ${r.analysis.slice(0, 300)}`;
-      }).join('\n');
-    };
-
-    // 이미지 분석 완료 후 자동으로 키워드/제목 생성
-    if (mainKeyword.trim() && analysisResults.length > 0) {
-      const kwEndpoint = apiProvider === 'gemini' ? '/api/gemini/keywords' : '/api/openai/keywords';
-      const categoryName = category === '기타' && customCategoryName ? customCategoryName : category;
-      const analysisSummary = buildAnalysisSummary(analysisResults);
-      const kwBody = {
-        mainKeyword,
-        category: categoryName,
-        businessName,
-        imageContext: imageAnalysisContext || '',
-        imageAnalysis: analysisSummary,
-        ...(teamApiKey ? { apiKey: teamApiKey } : {}),
-      };
-
-      // API 한도 방지를 위해 5초 대기 후 최대 2회 시도
-      let kwSuccess = false;
-      for (let kwRetry = 0; kwRetry < 2 && !kwSuccess; kwRetry++) {
-        try {
-          const waitSec = kwRetry === 0 ? 5 : 20;
-          toast.info(`키워드 자동 생성 중... (${waitSec}초 대기)`);
-          await new Promise(r => setTimeout(r, waitSec * 1000));
-
-          const kwResponse = await fetch(kwEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeaders },
-            body: JSON.stringify(kwBody),
-          });
-
-          if (kwResponse.status === 429) {
-            console.warn(`Keyword generation 429, retry ${kwRetry + 1}/2`);
-            continue;
-          }
-
-          if (!kwResponse.ok) {
-            const errData = await kwResponse.json().catch(() => ({ error: `HTTP ${kwResponse.status}` }));
-            console.error('키워드 생성 에러:', errData.error);
-            toast.error(`키워드 생성 실패: ${errData.error}`);
-            break;
-          }
-
-          const kwData = await kwResponse.json();
-          if (!kwData.error) {
-            const sub = Array.isArray(kwData.subKeywords) ? kwData.subKeywords.map(String) : [];
-            while (sub.length < 3) sub.push('');
-            setSubKeywords(sub.slice(0, 3));
-
-            const tail = Array.isArray(kwData.tailKeywords) ? kwData.tailKeywords.map(String) : [];
-            while (tail.length < 3) tail.push('');
-            setTailKeywords(tail.slice(0, 3));
-
-            if (kwData.titles?.length > 0) setCustomTitle(kwData.titles[0]);
-            toast.success('키워드와 제목이 자동 생성되었습니다');
-            kwSuccess = true;
-          } else {
-            console.error('키워드 생성 에러:', kwData.error);
-            toast.error(`키워드 생성 실패: ${kwData.error}`);
-          }
-        } catch (kwError) {
-          console.error('키워드 자동 생성 실패:', kwError);
-        }
-      }
-      if (!kwSuccess) {
-        toast.error('키워드 자동 생성에 실패했습니다. 다음 단계에서 직접 입력해주세요.');
-      }
     }
 
     setIsAnalyzing(false);
