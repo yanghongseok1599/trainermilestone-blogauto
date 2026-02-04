@@ -133,46 +133,73 @@ export function StepImageUpload() {
     const analysisResults: { analysis: string; analysisJson?: Record<string, unknown> }[] = [];
     const authHeaders = await getAuthHeaders();
 
-    for (let i = 0; i < images.length; i++) {
-      // 두 번째 이미지부터 2초 딜레이 (Gemini API rate limit 방지)
-      if (i > 0) await new Promise(r => setTimeout(r, 2000));
-      const img = images[i];
-      try {
-        const endpoint = apiProvider === 'gemini' ? '/api/gemini/analyze' : '/api/openai/analyze';
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders },
-          body: JSON.stringify({
-            image: { mimeType: img.mimeType, data: img.base64 },
-            category,
-            businessInfo: {
-              businessName,
-              mainKeyword,
-              targetAudience,
-              uniquePoint,
-            },
-            context: imageAnalysisContext,
-            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
-          }),
-        });
+    const MAX_CLIENT_RETRIES = 3;
 
-        if (!response.ok) {
-          const statusText = response.status === 413
-            ? '이미지가 너무 큽니다. 더 작은 이미지를 사용해주세요.'
-            : `서버 오류 (${response.status})`;
-          updateImageAnalysis(img.id, `분석 실패: ${statusText}`);
-          continue;
+    for (let i = 0; i < images.length; i++) {
+      // 이미지 간 3초 딜레이 (Gemini API rate limit 방지)
+      if (i > 0) await new Promise(r => setTimeout(r, 3000));
+      const img = images[i];
+      let success = false;
+
+      for (let retry = 0; retry < MAX_CLIENT_RETRIES && !success; retry++) {
+        try {
+          // 재시도 시 추가 대기 (5초, 10초)
+          if (retry > 0) {
+            const waitMs = retry * 5000;
+            toast.info(`이미지 ${i + 1} 재시도 중... (${waitMs / 1000}초 대기)`);
+            await new Promise(r => setTimeout(r, waitMs));
+          }
+
+          const endpoint = apiProvider === 'gemini' ? '/api/gemini/analyze' : '/api/openai/analyze';
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({
+              image: { mimeType: img.mimeType, data: img.base64 },
+              category,
+              businessInfo: {
+                businessName,
+                mainKeyword,
+                targetAudience,
+                uniquePoint,
+              },
+              context: imageAnalysisContext,
+              ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+            }),
+          });
+
+          // 429 → 재시도
+          if (response.status === 429) {
+            console.warn(`Image ${i + 1} got 429, retry ${retry + 1}/${MAX_CLIENT_RETRIES}`);
+            continue;
+          }
+
+          if (!response.ok) {
+            const statusText = response.status === 413
+              ? '이미지가 너무 큽니다. 더 작은 이미지를 사용해주세요.'
+              : `서버 오류 (${response.status})`;
+            updateImageAnalysis(img.id, `분석 실패: ${statusText}`);
+            success = true; // 에러지만 재시도 불필요
+            continue;
+          }
+          const data = await response.json();
+          if (data.analysis) {
+            updateImageAnalysis(img.id, data.analysis, data.analysisJson || undefined);
+            analysisResults.push({ analysis: data.analysis, analysisJson: data.analysisJson });
+          } else if (data.error) {
+            updateImageAnalysis(img.id, `분석 오류: ${data.error}`);
+          }
+          success = true;
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+          if (retry === MAX_CLIENT_RETRIES - 1) {
+            updateImageAnalysis(img.id, `분석 실패: ${errorMessage}`);
+          }
         }
-        const data = await response.json();
-        if (data.analysis) {
-          updateImageAnalysis(img.id, data.analysis, data.analysisJson || undefined);
-          analysisResults.push({ analysis: data.analysis, analysisJson: data.analysisJson });
-        } else if (data.error) {
-          updateImageAnalysis(img.id, `분석 오류: ${data.error}`);
-        }
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-        updateImageAnalysis(img.id, `분석 실패: ${errorMessage}`);
+      }
+
+      if (!success) {
+        updateImageAnalysis(img.id, '분석 실패: API 요청 한도 초과. 잠시 후 다시 시도해주세요.');
       }
     }
 

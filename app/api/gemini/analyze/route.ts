@@ -73,81 +73,83 @@ ${businessContext}${userContext}
 3. textFound.raw는 사진에 보이는 글자를 변형 없이 그대로 옮겨 적기
 4. JSON만 출력. 앞뒤 설명 텍스트 금지`;
 
-    // Free tier: v1beta only, use flash models with better quota
-    const apiVersions = ['v1beta'];
+    // 모델 목록 (각 모델은 별도 rate limit quota를 가짐)
+    // 429 시 같은 모델 재시도 대신 다음 모델로 즉시 전환
     const models = [
-      'gemini-2.5-flash',
       'gemini-2.0-flash',
+      'gemini-2.5-flash',
       'gemini-1.5-flash-latest',
     ];
     let lastError = '';
-    const MAX_RETRIES = 3;
+    let allRateLimited = true;
 
-    for (const apiVersion of apiVersions) {
-      for (const model of models) {
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    for (const model of models) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: image.mimeType, data: image.data } }
+                ]
+              }],
+              generationConfig: {
+                temperature: 0.2,
+              }
+            })
+          }
+        );
+
+        // 429 → 다음 모델로 즉시 전환 (재시도 X)
+        if (response.status === 429) {
+          console.warn(`Gemini ${model} rate limited (429), trying next model`);
+          lastError = `${model} rate limited`;
+          continue;
+        }
+
+        allRateLimited = false;
+        const data = await response.json();
+
+        if (data.error) {
+          lastError = data.error.message || JSON.stringify(data.error);
+          if (lastError.includes('quota') || lastError.includes('rate')) {
+            console.warn(`Gemini ${model} quota error, trying next model`);
+            continue;
+          }
+          console.error(`Gemini analyze ${model} error:`, lastError);
+          continue;
+        }
+
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (text) {
+          console.log(`Analyze success with ${model}`);
+
           try {
-            const response = await fetch(
-              `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{
-                    parts: [
-                      { text: prompt },
-                      { inline_data: { mime_type: image.mimeType, data: image.data } }
-                    ]
-                  }],
-                  generationConfig: {
-                    temperature: 0.2,
-                  }
-                })
-              }
-            );
-
-            // 429 Rate Limit → 재시도 (지수 백오프)
-            if (response.status === 429) {
-              const waitSec = Math.pow(2, attempt + 1); // 2s, 4s, 8s
-              console.warn(`Gemini ${model} rate limited (429), retrying in ${waitSec}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
-              await new Promise(r => setTimeout(r, waitSec * 1000));
-              continue;
-            }
-
-            const data = await response.json();
-
-            if (data.error) {
-              lastError = data.error.message || JSON.stringify(data.error);
-              if (lastError.includes('quota') || lastError.includes('rate')) {
-                const waitSec = Math.pow(2, attempt + 1);
-                console.warn(`Gemini ${model} quota/rate error, retrying in ${waitSec}s`);
-                await new Promise(r => setTimeout(r, waitSec * 1000));
-                continue;
-              }
-              console.error(`Gemini analyze ${apiVersion}/${model} error:`, lastError);
-              break; // 다른 모델로
-            }
-
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            if (text) {
-              console.log(`Analyze success with ${apiVersion}/${model}`);
-
-              try {
-                const jsonStr = extractJson(text);
-                const analysisJson = JSON.parse(jsonStr);
-                return NextResponse.json({ analysis: text, analysisJson });
-              } catch {
-                console.warn('JSON parse failed, returning raw text');
-                return NextResponse.json({ analysis: text });
-              }
-            }
-            break; // 빈 응답이면 다음 모델로
-          } catch (modelError) {
-            console.error(`Gemini analyze ${apiVersion}/${model} fetch error:`, modelError);
-            break;
+            const jsonStr = extractJson(text);
+            const analysisJson = JSON.parse(jsonStr);
+            return NextResponse.json({ analysis: text, analysisJson });
+          } catch {
+            console.warn('JSON parse failed, returning raw text');
+            return NextResponse.json({ analysis: text });
           }
         }
+      } catch (modelError) {
+        console.error(`Gemini analyze ${model} fetch error:`, modelError);
+        allRateLimited = false;
+        continue;
       }
+    }
+
+    // 모든 모델이 429인 경우 → 클라이언트에 429 반환 (재시도 유도)
+    if (allRateLimited) {
+      return NextResponse.json(
+        { error: 'API 요청 한도 초과. 잠시 후 자동 재시도됩니다.', retryable: true },
+        { status: 429 }
+      );
     }
 
     return NextResponse.json({ error: lastError || '모든 모델에서 분석 실패' }, { status: 400 });
