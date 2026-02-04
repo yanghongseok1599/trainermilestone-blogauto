@@ -112,16 +112,19 @@ ${prompt}`;
     // 출력 토큰 설정 (라이트: 4096, 최적화: 6144, 일반: 8192)
     const maxOutputTokens = liteMode ? 4096 : optimizedMode ? 6144 : 8192;
 
-    // Free tier models - 토큰 절약 모드에서는 flash만 사용
-    const models = ['gemini-2.5-flash'];
-
+    const model = 'gemini-2.5-flash';
+    const MAX_RETRIES = 3;
     let lastError = '';
     let isQuotaError = false;
 
     console.log(`Generating with liteMode=${liteMode}, optimizedMode=${optimizedMode}, maxOutputTokens=${maxOutputTokens}`);
 
-    for (const model of models) {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
+        if (attempt > 0) {
+          await new Promise(r => setTimeout(r, attempt * 3000));
+        }
+
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
@@ -130,48 +133,52 @@ ${prompt}`;
             body: JSON.stringify({
               contents,
               generationConfig: {
-                temperature: liteMode ? 0.7 : 0.8, // 라이트 모드에서는 더 일관된 출력
+                temperature: liteMode ? 0.7 : 0.8,
                 maxOutputTokens
               }
             })
           }
         );
 
+        if (response.status === 429) {
+          isQuotaError = true;
+          lastError = 'API 요청 한도 초과';
+          console.warn(`Gemini ${model} rate limited, attempt ${attempt + 1}/${MAX_RETRIES}`);
+          continue;
+        }
+
         const data = await response.json();
 
         if (data.error) {
           lastError = data.error.message || JSON.stringify(data.error);
-
-          // 할당량 초과 에러 감지
-          if (lastError.toLowerCase().includes('quota') || lastError.toLowerCase().includes('rate limit')) {
+          if (lastError.toLowerCase().includes('quota') || lastError.toLowerCase().includes('rate')) {
             isQuotaError = true;
+            continue;
           }
-
           console.error(`Gemini ${model} error:`, lastError);
-          continue; // Try next model
+          break;
         }
 
         const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (rawText) {
-          console.log(`Success with ${model}`);
+          console.log(`Success with ${model} (attempt ${attempt + 1})`);
 
-          // 사이트 API 사용 시 실제 토큰 사용량 기록
           if (useSiteApi && authenticatedUserId) {
             const estimatedTokens = Math.ceil((prompt.length + rawText.length) / 2);
             await checkAndIncrementTokenUsageServer(authenticatedUserId, estimatedTokens);
           }
 
-          // 마크다운 및 금지 패턴 후처리 제거
           const cleanedText = cleanMarkdownAndForbiddenPatterns(rawText);
           return NextResponse.json({ content: cleanedText });
         }
-      } catch (modelError) {
-        console.error(`Gemini ${model} fetch error:`, modelError);
-        continue;
+        break;
+      } catch (fetchError) {
+        console.error(`Gemini ${model} fetch error:`, fetchError);
+        lastError = fetchError instanceof Error ? fetchError.message : 'Fetch error';
+        break;
       }
     }
 
-    // 할당량 초과 시 사용자 친화적 메시지
     if (isQuotaError) {
       return NextResponse.json({
         error: 'API 무료 할당량이 초과되었습니다. 잠시 후 다시 시도하거나, 새로운 API 키를 발급받아 사용해주세요. (Google AI Studio에서 무료 발급 가능)'

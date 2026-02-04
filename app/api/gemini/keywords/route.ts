@@ -52,11 +52,16 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
    - 이미지에서 발견된 텍스트, 브랜드, 인물, 상품 등을 키워드와 제목에 적극 반영하세요.
    - 업체 정보는 보조적으로 활용하고, 이미지와 기획 의도가 핵심입니다.` : ''}`;
 
-    const models = ['gemini-2.5-flash'];
+    const model = 'gemini-2.5-flash';
+    const MAX_RETRIES = 3;
     let lastError = '';
 
-    for (const model of models) {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
+        if (attempt > 0) {
+          await new Promise(r => setTimeout(r, attempt * 3000));
+        }
+
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
           {
@@ -72,24 +77,30 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
           }
         );
 
+        if (response.status === 429) {
+          lastError = 'API 요청 한도 초과';
+          continue;
+        }
+
         const data = await response.json();
 
         if (data.error) {
           lastError = data.error.message || JSON.stringify(data.error);
-          continue;
+          if (lastError.includes('quota') || lastError.includes('rate')) continue;
+          break;
         }
 
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) {
           lastError = '응답이 비어있습니다';
-          continue;
+          break;
         }
 
         // JSON 파싱
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
           lastError = 'JSON 파싱 실패';
-          continue;
+          break;
         }
 
         const result = JSON.parse(jsonMatch[0]);
@@ -100,7 +111,7 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
         });
       } catch (e) {
         lastError = e instanceof Error ? e.message : '알 수 없는 오류';
-        continue;
+        break;
       }
     }
 
