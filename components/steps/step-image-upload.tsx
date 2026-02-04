@@ -16,12 +16,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTriangle, Info, Edit3, FileText } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
+import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
 
 export function StepImageUpload() {
-  const { images, apiProvider, apiKey, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customTitle, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCustomTitle, setCurrentStep } = useAppStore();
+  const { images, apiProvider, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customCategoryName, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCurrentStep, setSubKeywords, setTailKeywords, setCustomTitle } = useAppStore();
+  const { user, getAuthHeaders } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
@@ -33,7 +35,7 @@ export function StepImageUpload() {
     if (hasUnanalyzedImages) {
       setShowSkipDialog(true);
     } else {
-      setCurrentStep(3);
+      setCurrentStep(2);
     }
   };
 
@@ -71,14 +73,33 @@ export function StepImageUpload() {
     setIsAnalyzing(true);
     toast.info('이미지 분석을 시작합니다...');
 
+    // 팀 멤버인 경우 팀 소유자의 API 키 가져오기
+    let teamApiKey = '';
+    if (user) {
+      try {
+        const membership = await getMyTeamMembership(user.uid);
+        if (membership) {
+          const ownerSettings = await getTeamOwnerApiSettings(membership.ownerId);
+          if (ownerSettings?.apiKey) {
+            teamApiKey = ownerSettings.apiKey;
+          }
+        }
+      } catch (teamError) {
+        console.error('Team API key fetch failed:', teamError);
+      }
+    }
+
+    // 분석 결과를 로컬에 수집 (클로저 문제 방지)
+    const analysisResults: { analysis: string; analysisJson?: Record<string, unknown> }[] = [];
+    const authHeaders = await getAuthHeaders();
+
     for (const img of images) {
       try {
         const endpoint = apiProvider === 'gemini' ? '/api/gemini/analyze' : '/api/openai/analyze';
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
-            apiKey,
             image: { mimeType: img.mimeType, data: img.base64 },
             category,
             businessInfo: {
@@ -88,12 +109,14 @@ export function StepImageUpload() {
               uniquePoint,
             },
             context: imageAnalysisContext,
+            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
           }),
         });
 
         const data = await response.json();
         if (data.analysis) {
-          updateImageAnalysis(img.id, data.analysis);
+          updateImageAnalysis(img.id, data.analysis, data.analysisJson || undefined);
+          analysisResults.push({ analysis: data.analysis, analysisJson: data.analysisJson });
         } else if (data.error) {
           updateImageAnalysis(img.id, `분석 오류: ${data.error}`);
         }
@@ -105,6 +128,74 @@ export function StepImageUpload() {
 
     setIsAnalyzing(false);
     toast.success('이미지 분석이 완료되었습니다');
+
+    // 이미지 분석 결과를 사람이 읽을 수 있는 요약으로 변환
+    const buildAnalysisSummary = (results: typeof analysisResults): string => {
+      return results.map((r, idx) => {
+        const j = r.analysisJson as Record<string, unknown> | undefined;
+        if (j) {
+          const lines: string[] = [`[사진${idx + 1}]`];
+          if (j.placeType) lines.push(`장소: ${j.placeType}`);
+          if (Array.isArray(j.equipment) && j.equipment.length > 0) {
+            lines.push(`기구: ${j.equipment.map((e: { name: string; count?: number }) => e.count ? `${e.name} ${e.count}대` : e.name).join(', ')}`);
+          }
+          if (j.spaceSize) lines.push(`규모: ${j.spaceSize}`);
+          const people = j.people as { exists?: boolean; description?: string } | undefined;
+          if (people?.exists && people.description) lines.push(`인물: ${people.description}`);
+          if (Array.isArray(j.textFound) && j.textFound.length > 0) {
+            lines.push(`사진 속 텍스트: ${j.textFound.map((t: { raw: string }) => t.raw).join(' / ')}`);
+          }
+          if (Array.isArray(j.numbersFound) && j.numbersFound.length > 0) lines.push(`숫자/가격: ${j.numbersFound.join(', ')}`);
+          if (Array.isArray(j.certificates) && j.certificates.length > 0) {
+            lines.push(`자격증: ${j.certificates.map((c: { name: string; issuer: string }) => `${c.name}(${c.issuer})`).join(', ')}`);
+          }
+          if (Array.isArray(j.brandLogo) && j.brandLogo.length > 0) lines.push(`브랜드: ${j.brandLogo.join(', ')}`);
+          const mood = j.mood as { impression?: string } | undefined;
+          if (mood?.impression) lines.push(`분위기: ${mood.impression}`);
+          if (j.claimSupport) lines.push(`활용 포인트: ${j.claimSupport}`);
+          return lines.join(', ');
+        }
+        return `[사진${idx + 1}] ${r.analysis.slice(0, 300)}`;
+      }).join('\n');
+    };
+
+    // 이미지 분석 완료 후 자동으로 키워드/제목 생성
+    if (mainKeyword.trim()) {
+      try {
+        const kwEndpoint = apiProvider === 'gemini' ? '/api/gemini/keywords' : '/api/openai/keywords';
+        const categoryName = category === '기타' && customCategoryName ? customCategoryName : category;
+        const analysisSummary = buildAnalysisSummary(analysisResults);
+        const kwResponse = await fetch(kwEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            mainKeyword,
+            category: categoryName,
+            businessName,
+            imageContext: imageAnalysisContext || '',
+            imageAnalysis: analysisSummary,
+            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+          }),
+        });
+        const kwData = await kwResponse.json();
+        if (!kwData.error) {
+          // 보조 키워드: 3개로 패딩
+          const sub = Array.isArray(kwData.subKeywords) ? kwData.subKeywords.map(String) : [];
+          while (sub.length < 3) sub.push('');
+          setSubKeywords(sub.slice(0, 3));
+
+          // 테일 키워드: 3개로 패딩
+          const tail = Array.isArray(kwData.tailKeywords) ? kwData.tailKeywords.map(String) : [];
+          while (tail.length < 3) tail.push('');
+          setTailKeywords(tail.slice(0, 3));
+
+          if (kwData.titles?.length > 0) setCustomTitle(kwData.titles[0]);
+          toast.success('키워드와 제목이 자동 생성되었습니다');
+        }
+      } catch (kwError) {
+        console.error('키워드 자동 생성 실패:', kwError);
+      }
+    }
   };
 
   return (
@@ -117,7 +208,7 @@ export function StepImageUpload() {
               <div className="w-16 h-16 rounded-full bg-[#f72c5b]/10 flex items-center justify-center">
                 <Loader2 className="w-8 h-8 text-[#f72c5b] animate-spin" />
               </div>
-              <Sparkles className="w-5 h-5 text-[#f7a600] absolute -top-1 -right-1 animate-pulse" />
+              <Sparkles className="w-5 h-5 text-[#f72c5b] absolute -top-1 -right-1 animate-pulse" />
             </div>
             <div className="text-center">
               <p className="text-lg font-semibold text-[#111111]">AI가 이미지를 분석하고 있습니다</p>
@@ -142,31 +233,6 @@ export function StepImageUpload() {
         <CardDescription className="text-base">업로드된 이미지를 AI가 분석하여 문맥 일치도를 자동으로 맞춰드립니다</CardDescription>
       </CardHeader>
 
-      {/* Custom Title Input Section - 이미지 없이 제목만으로 글 생성 가능 */}
-      <div className="px-6 pb-4">
-        <div className="bg-gradient-to-r from-[#f72c5b]/5 to-[#f7a600]/5 border border-[#f72c5b]/20 rounded-xl p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-[#f72c5b]/10 text-[#f72c5b]">
-              <FileText className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-[#111111]">제목 직접 입력</h3>
-              <p className="text-xs text-[#6b7280]">이미지 없이 제목만으로도 글 생성이 가능합니다</p>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Input
-              value={customTitle}
-              onChange={(e) => setCustomTitle(e.target.value)}
-              placeholder="예: 강남역 헬스장 가격 비교, 3개월 다녀본 솔직 후기"
-              className="h-12 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-base"
-            />
-            <p className="text-xs text-[#9ca3af]">
-              원하는 제목을 직접 입력하면 해당 제목으로 글이 생성됩니다. 비워두면 AI가 제목을 추천합니다.
-            </p>
-          </div>
-        </div>
-      </div>
       <CardContent className="space-y-6">
         {/* Upload Zone - Optional */}
         <div className="space-y-2">
@@ -208,6 +274,15 @@ export function StepImageUpload() {
             </div>
           </div>
         </div>
+
+        {/* 이미지가 없을 때 안내 */}
+        {images.length === 0 && (
+          <div className="bg-[#f9fafb] border border-[#eeeeee] rounded-xl p-6 text-center space-y-2">
+            <p className="text-sm text-[#6b7280]">
+              분석할 이미지가 없으면 아래 <span className="font-semibold text-[#111111]">다음 단계</span> 버튼을 눌러 바로 생성 페이지로 이동하세요
+            </p>
+          </div>
+        )}
 
         {/* Image Previews */}
         {images.length > 0 && (
@@ -297,7 +372,7 @@ export function StepImageUpload() {
           <Button
             variant="outline"
             className="h-12 px-6 border-[#eeeeee] hover:bg-[#f5f5f5]"
-            onClick={() => setCurrentStep(1)}
+            onClick={() => setCurrentStep(0)}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             이전
@@ -315,7 +390,7 @@ export function StepImageUpload() {
         <AlertDialog open={showSkipDialog} onOpenChange={setShowSkipDialog}>
           <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-[#f7a600]">
+              <AlertDialogTitle className="flex items-center gap-2 text-[#f72c5b]">
                 <AlertTriangle className="w-5 h-5" />
                 이미지 분석을 건너뛸까요?
               </AlertDialogTitle>
@@ -333,7 +408,7 @@ export function StepImageUpload() {
               </AlertDialogCancel>
               <AlertDialogAction
                 className="bg-[#6b7280] hover:bg-[#4b5563]"
-                onClick={() => setCurrentStep(3)}
+                onClick={() => setCurrentStep(2)}
               >
                 분석 없이 진행
               </AlertDialogAction>

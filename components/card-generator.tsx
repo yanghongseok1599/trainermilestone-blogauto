@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -194,7 +195,8 @@ export function CardGenerator() {
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [isExtracted, setIsExtracted] = useState(false);
   const [isCardEnabled, setIsCardEnabled] = useState(false); // 카드 생성 활성화 여부
-  const { businessName, category, attributes, apiKey, apiProvider, generatedContent } = useAppStore();
+  const { businessName, category, attributes, apiProvider, generatedContent } = useAppStore();
+  const { getAuthHeaders } = useAuth();
 
   // 블로그 본문에서 정보 추출
   const extractedInfo = useMemo(() => {
@@ -533,11 +535,6 @@ export function CardGenerator() {
       return;
     }
 
-    if (!apiKey) {
-      toast.error('API 키가 설정되지 않았습니다');
-      return;
-    }
-
     setIsCustomizing(true);
     toast.info('카드 내용을 수정하고 있습니다...');
 
@@ -574,10 +571,11 @@ ${cardType === 'info' ? `{
 }`}`;
 
       const endpoint = apiProvider === 'gemini' ? '/api/gemini/generate' : '/api/openai/generate';
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey, prompt }),
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ prompt }),
       });
 
       const data = await response.json();
@@ -681,9 +679,9 @@ ${cardType === 'info' ? `{
         <>
           {/* 본문 연동 안내 */}
           {generatedContent && (
-            <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-lg p-3 mb-4 flex items-center justify-between">
+            <div className="bg-[#03C75A]/10 border border-[#03C75A]/30 rounded-lg p-3 mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#10b981]" />
+                <Sparkles className="w-4 h-4 text-[#03C75A]" />
                 <span className="text-xs text-[#059669]">
                   블로그 본문에서 정보를 추출하여 카드를 생성합니다
                 </span>
@@ -691,7 +689,7 @@ ${cardType === 'info' ? `{
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-xs text-[#10b981] hover:bg-[#10b981]/10"
+                className="h-7 px-2 text-xs text-[#03C75A] hover:bg-[#03C75A]/10"
                 onClick={reExtractFromContent}
               >
                 <RotateCcw className="w-3 h-3 mr-1" />

@@ -13,8 +13,12 @@ import { toast } from 'sonner';
 import { parseImagePrompts, categoryStyles, type ParsedImagePrompt } from '@/lib/image-prompt-utils';
 import { useAppStore } from '@/lib/store';
 import { AuthGuard } from '@/components/auth-guard';
+import { useAuth } from '@/lib/auth-context';
+import { getUserSubscription } from '@/lib/payment-service';
+import { PLANS, type UserSubscription } from '@/types/payment';
 
 type ApiProvider = 'openai' | 'gemini';
+type ApiKeyMode = 'own' | 'site'; // 자기 키 vs 사이트 키
 
 // 모델 목록 정의
 const OPENAI_MODELS = [
@@ -24,11 +28,14 @@ const OPENAI_MODELS = [
 ];
 
 const GEMINI_MODELS = [
-  { id: 'gemini-2.0-flash-exp-image-generation', name: 'Gemini 2.0 Flash (이미지)', description: '빠른 이미지 생성 특화' },
-  { id: 'imagen-3.0-generate-002', name: 'Imagen 3 (최신)', description: 'Google 최신 이미지 생성 모델' },
-  { id: 'imagen-3.0-generate-001', name: 'Imagen 3', description: 'Google 고품질 이미지 생성' },
-  { id: 'imagen-3.0-fast-generate-001', name: 'Imagen 3 Fast', description: '빠른 생성, 낮은 비용' },
+  { id: 'gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash (최신)', description: '빠르고 고품질 이미지 생성 (무료)', free: true },
+  { id: 'imagen-3.0-generate-002', name: 'Imagen 3 (최신)', description: 'Google 최신 이미지 생성 모델', free: false },
+  { id: 'imagen-3.0-generate-001', name: 'Imagen 3', description: 'Google 고품질 이미지 생성', free: false },
+  { id: 'imagen-3.0-fast-generate-001', name: 'Imagen 3 Fast', description: '빠른 생성, 낮은 비용', free: false },
 ];
+
+// 무료 모델 ID 목록 (사이트 API 사용 시 플랜 제한 미적용)
+const FREE_MODELS = ['gemini-2.5-flash-preview-04-17'];
 
 interface ImageWithGeneration extends ParsedImagePrompt {
   generatedUrl?: string;
@@ -38,18 +45,47 @@ interface ImageWithGeneration extends ParsedImagePrompt {
 
 function ImageGeneratorContent() {
   const searchParams = useSearchParams();
-  const { extractedImagePrompts, category: storeCategory, setExtractedImagePrompts, apiKey: storeApiKey, apiProvider: storeApiProvider } = useAppStore();
+  const { user, getAuthHeaders } = useAuth();
+  const { extractedImagePrompts, category: storeCategory, setExtractedImagePrompts, apiProvider: storeApiProvider } = useAppStore();
   const [inputPrompt, setInputPrompt] = useState('');
   const [category, setCategory] = useState('');
   const [parsedImages, setParsedImages] = useState<ImageWithGeneration[]>([]);
   const [apiKey, setApiKey] = useState('');
+  const [apiKeyMode, setApiKeyMode] = useState<ApiKeyMode>('site');
   const [apiProvider, setApiProvider] = useState<ApiProvider>('openai');
   const [selectedModel, setSelectedModel] = useState('gpt-image-1');
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [hasLoadedFromStore, setHasLoadedFromStore] = useState(false);
   const [hasLoadedFromUrl, setHasLoadedFromUrl] = useState(false);
+  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
 
   const currentModels = apiProvider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
+
+  // 구독 정보 로드
+  useEffect(() => {
+    const loadSub = async () => {
+      if (user) {
+        try {
+          const sub = await getUserSubscription(user.uid);
+          setSubscription(sub);
+        } catch (error) {
+          console.error('Failed to load subscription:', error);
+        }
+      }
+    };
+    loadSub();
+  }, [user]);
+
+  // 사이트 API 사용 시 플랜 제한 정보
+  const planInfo = subscription ? PLANS[subscription.currentPlan] : PLANS.FREE;
+  const imageGenLimit = planInfo.imageGenerationLimit;
+  const dailyImageGenLimit = planInfo.dailyImageGenerationLimit;
+  const dailyPaidImageGenLimit = planInfo.dailyPaidImageGenerationLimit;
+  const usedCount = subscription?.imageGenerationCount ?? 0;
+  const dailyUsedCount = subscription?.dailyImageGenerationCount ?? 0;
+  const dailyPaidUsedCount = subscription?.dailyPaidImageGenerationCount ?? 0;
+  const canUsePaidModel = imageGenLimit > 0 && usedCount < imageGenLimit && dailyPaidUsedCount < dailyPaidImageGenLimit;
+  const canUseFreeModel = dailyImageGenLimit > 0 && dailyUsedCount < dailyImageGenLimit;
 
   // URL 파라미터에서 프롬프트 로드 (리믹스 기능)
   useEffect(() => {
@@ -65,29 +101,13 @@ function ImageGeneratorContent() {
     }
   }, [searchParams, hasLoadedFromUrl]);
 
-  // 저장된 API 키 로드
+  // 저장된 API provider 로드
   useEffect(() => {
-    // 먼저 store에서 로드 시도
-    if (storeApiKey) {
-      setApiKey(storeApiKey);
-      if (storeApiProvider === 'openai' || storeApiProvider === 'gemini') {
-        setApiProvider(storeApiProvider as ApiProvider);
-        setSelectedModel(storeApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.0-flash-exp-image-generation');
-      }
-    } else {
-      // localStorage에서 로드
-      const savedApiKey = localStorage.getItem('blogbooster_api_key');
-      const savedApiProvider = localStorage.getItem('blogbooster_api_provider');
-
-      if (savedApiKey) {
-        setApiKey(savedApiKey);
-      }
-      if (savedApiProvider === 'openai' || savedApiProvider === 'gemini') {
-        setApiProvider(savedApiProvider as ApiProvider);
-        setSelectedModel(savedApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.0-flash-exp-image-generation');
-      }
+    if (storeApiProvider === 'openai' || storeApiProvider === 'gemini') {
+      setApiProvider(storeApiProvider as ApiProvider);
+      setSelectedModel(storeApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-preview-04-17');
     }
-  }, [storeApiKey, storeApiProvider]);
+  }, [storeApiProvider]);
 
   // 블로그 본문에서 연동된 이미지 프롬프트가 있으면 자동 로드
   useEffect(() => {
@@ -139,10 +159,34 @@ function ImageGeneratorContent() {
     toast.success(`${parsed.length}개의 이미지 프롬프트가 분석되었습니다`);
   }, [inputPrompt, category]);
 
+  const isFreeModel = FREE_MODELS.includes(selectedModel);
+
   const generateImage = async (id: string) => {
-    if (!apiKey.trim()) {
-      toast.error(`${apiProvider === 'openai' ? 'OpenAI' : 'Gemini'} API 키를 입력해주세요`);
+    // 자기 API 모드일 때 키 필수
+    if (apiKeyMode === 'own' && !apiKey.trim()) {
+      toast.error(`${apiProvider === 'openai' ? 'OpenAI' : 'Google'} API 키를 입력해주세요`);
       return;
+    }
+
+    // 사이트 API 모드일 때 한도 확인
+    if (apiKeyMode === 'site') {
+      if (isFreeModel) {
+        // 무료 모델: 전체 일일 한도 체크
+        if (!canUseFreeModel) {
+          toast.error(`일일 이미지 생성 한도(${dailyImageGenLimit}장)를 초과했습니다.`);
+          return;
+        }
+      } else {
+        // 유료 모델: 유료 일일 한도 + 월 한도 체크
+        if (imageGenLimit === 0) {
+          toast.error('현재 플랜에서는 유료 모델의 사이트 API 사용이 지원되지 않습니다. Gemini 2.5 Flash(무료)를 사용하거나 직접 API 키를 입력해주세요.');
+          return;
+        }
+        if (!canUsePaidModel) {
+          toast.error(`유료 모델 일일 한도(${dailyPaidImageGenLimit}장)를 초과했습니다. Gemini 2.5 Flash(무료)를 사용하거나 직접 API 키를 입력해주세요.`);
+          return;
+        }
+      }
     }
 
     const imageIndex = parsedImages.findIndex(img => img.id === id);
@@ -162,21 +206,22 @@ function ImageGeneratorContent() {
 
       const body = apiProvider === 'openai'
         ? {
-            apiKey,
+            ...(apiKeyMode === 'own' ? { apiKey } : { useSiteApi: true, userId: user?.uid }),
             prompt: image.english,
             model: selectedModel,
             size: '1024x1024',
             quality: 'standard',
           }
         : {
-            apiKey,
+            ...(apiKeyMode === 'own' ? { apiKey } : { useSiteApi: true, userId: user?.uid }),
             prompt: image.english,
             model: selectedModel,
           };
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify(body),
       });
 
@@ -190,7 +235,31 @@ function ImageGeneratorContent() {
         img.id === id ? { ...img, generatedUrl: data.imageUrl, isGenerating: false } : img
       ));
 
+      // 사이트 API 사용 시 카운트 업데이트
+      if (apiKeyMode === 'site' && subscription) {
+        setSubscription(prev => {
+          if (!prev) return prev;
+          const updated = {
+            ...prev,
+            dailyImageGenerationCount: (prev.dailyImageGenerationCount ?? 0) + 1,
+          };
+          if (!isFreeModel) {
+            // 유료 모델은 유료 카운트도 증가
+            updated.imageGenerationCount = (prev.imageGenerationCount ?? 0) + 1;
+            updated.dailyPaidImageGenerationCount = (prev.dailyPaidImageGenerationCount ?? 0) + 1;
+          }
+          return updated;
+        });
+      }
+
       toast.success(`이미지 ${imageIndex + 1} 생성 완료!`);
+
+      // 활동 기록
+      if (user) {
+        import('@/lib/activity-log').then(({ logActivity }) => {
+          logActivity(user.uid, 'image_generate', `이미지 생성: ${image.korean || '이미지'} (${selectedModel})`);
+        });
+      }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '이미지 생성 실패';
@@ -202,8 +271,8 @@ function ImageGeneratorContent() {
   };
 
   const generateAllImages = async () => {
-    if (!apiKey.trim()) {
-      toast.error(`${apiProvider === 'openai' ? 'OpenAI' : 'Gemini'} API 키를 입력해주세요`);
+    if (apiKeyMode === 'own' && !apiKey.trim()) {
+      toast.error(`${apiProvider === 'openai' ? 'OpenAI' : 'Google'} API 키를 입력해주세요`);
       return;
     }
 
@@ -311,6 +380,74 @@ function ImageGeneratorContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* API Key Mode Selection */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <label className="text-sm font-medium text-[#111111] whitespace-nowrap">
+                API 방식:
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  variant={apiKeyMode === 'site' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setApiKeyMode('site');
+                    setApiKey('');
+                  }}
+                  className={apiKeyMode === 'site'
+                    ? 'bg-[#f72c5b] hover:bg-[#e0264f] text-white'
+                    : 'border-[#eeeeee]'
+                  }
+                >
+                  사이트 API 사용
+                </Button>
+                <Button
+                  variant={apiKeyMode === 'own' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setApiKeyMode('own')}
+                  className={apiKeyMode === 'own'
+                    ? 'bg-[#111111] hover:bg-[#333333] text-white'
+                    : 'border-[#eeeeee]'
+                  }
+                >
+                  내 API 키 사용
+                </Button>
+              </div>
+            </div>
+
+            {/* 사이트 API 사용 시 잔여량 표시 */}
+            {apiKeyMode === 'site' && (
+              <div className={`rounded-lg p-3 text-sm ${isFreeModel ? 'bg-[#03C75A]/10' : imageGenLimit > 0 ? 'bg-[#f72c5b]/10' : 'bg-red-50'}`}>
+                {isFreeModel ? (
+                  <div className="text-[#03C75A]">
+                    <p className="font-medium mb-1">Gemini 2.5 Flash - 무료 모델</p>
+                    <div className="flex gap-4 text-xs">
+                      <span>오늘 전체: {dailyUsedCount}/{dailyImageGenLimit}장</span>
+                    </div>
+                    {!canUseFreeModel && (
+                      <p className="text-xs mt-1 text-red-500 font-medium">일일 한도 초과 - 내일 다시 이용하거나 플랜을 업그레이드하세요</p>
+                    )}
+                  </div>
+                ) : imageGenLimit > 0 ? (
+                  <div className="text-[#f72c5b]">
+                    <p className="font-medium mb-1">유료 모델 사이트 API ({planInfo.name} 플랜)</p>
+                    <div className="flex gap-4 text-xs">
+                      <span>월 사용량: {usedCount}/{imageGenLimit}장</span>
+                      <span>오늘 유료: {dailyPaidUsedCount}/{dailyPaidImageGenLimit}장</span>
+                      <span>오늘 전체: {dailyUsedCount}/{dailyImageGenLimit}장</span>
+                    </div>
+                    {!canUsePaidModel && (
+                      <p className="text-xs mt-1 text-red-500 font-medium">유료 모델 한도 초과 - Gemini 2.5 Flash(무료)를 사용하거나 플랜을 업그레이드하세요</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-red-600">
+                    <p className="font-medium mb-1">현재 플랜에서는 유료 모델의 사이트 API를 사용할 수 없습니다</p>
+                    <p className="text-xs">Gemini 2.5 Flash(무료)를 사용하거나 유료 플랜으로 업그레이드하세요</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* API Provider Selection */}
             <div className="flex items-center gap-4 flex-wrap">
               <label className="text-sm font-medium text-[#111111] whitespace-nowrap">
@@ -323,10 +460,10 @@ function ImageGeneratorContent() {
                   onClick={() => {
                     setApiProvider('openai');
                     setSelectedModel('gpt-image-1');
-                    setApiKey('');
+                    if (apiKeyMode === 'own') setApiKey('');
                   }}
                   className={apiProvider === 'openai'
-                    ? 'bg-[#10b981] hover:bg-[#059669] text-white'
+                    ? 'bg-[#03C75A] hover:bg-[#059669] text-white'
                     : 'border-[#eeeeee]'
                   }
                 >
@@ -337,11 +474,11 @@ function ImageGeneratorContent() {
                   size="sm"
                   onClick={() => {
                     setApiProvider('gemini');
-                    setSelectedModel('gemini-2.0-flash-exp-image-generation');
-                    setApiKey('');
+                    setSelectedModel('gemini-2.5-flash-preview-04-17');
+                    if (apiKeyMode === 'own') setApiKey('');
                   }}
                   className={apiProvider === 'gemini'
-                    ? 'bg-[#4285f4] hover:bg-[#3367d6] text-white'
+                    ? 'bg-[#111111] hover:bg-[#3367d6] text-white'
                     : 'border-[#eeeeee]'
                   }
                 >
@@ -374,77 +511,81 @@ function ImageGeneratorContent() {
               </p>
             </div>
 
-            {/* API Key Input */}
-            <div className="flex gap-3">
-              <Input
-                type="password"
-                placeholder={apiProvider === 'openai' ? 'sk-...' : 'API 키 입력'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="flex-1 h-11 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
-              />
-              {apiKey && (
-                <div className="flex items-center text-xs text-[#10b981]">
-                  <Sparkles className="w-4 h-4 mr-1" />
-                  키 입력됨
+            {/* API Key Input (자기 키 모드일 때만) */}
+            {apiKeyMode === 'own' && (
+              <>
+                <div className="flex gap-3">
+                  <Input
+                    type="password"
+                    placeholder={apiProvider === 'openai' ? 'sk-...' : 'API 키 입력'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="flex-1 h-11 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
+                  />
+                  {apiKey && (
+                    <div className="flex items-center text-xs text-[#03C75A]">
+                      <Sparkles className="w-4 h-4 mr-1" />
+                      키 입력됨
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* API Info */}
-            <div className={`rounded-lg p-3 text-sm ${
-              apiProvider === 'openai' ? 'bg-[#10b981]/10' : 'bg-[#4285f4]/10'
-            }`}>
-              {apiProvider === 'openai' ? (
-                <div className="text-[#059669]">
-                  <p className="font-medium mb-1">OpenAI 이미지 생성</p>
-                  <ul className="text-xs space-y-0.5">
-                    {selectedModel === 'gpt-image-1' && (
-                      <>
-                        <li>• GPT-4o 기반 최신 이미지 생성 모델</li>
-                        <li>• 더 정확한 프롬프트 이해 및 고품질 출력</li>
-                      </>
-                    )}
-                    {selectedModel === 'dall-e-3' && (
-                      <>
-                        <li>• 고품질 이미지 생성 (1024x1024)</li>
-                        <li>• 이미지당 약 $0.04 비용</li>
-                      </>
-                    )}
-                    {selectedModel === 'dall-e-2' && (
-                      <>
-                        <li>• 빠른 생성 속도</li>
-                        <li>• 이미지당 약 $0.02 비용 (저렴)</li>
-                      </>
-                    )}
-                    <li>• API 키: platform.openai.com에서 발급</li>
-                  </ul>
+                {/* API Info */}
+                <div className={`rounded-lg p-3 text-sm ${
+                  apiProvider === 'openai' ? 'bg-[#03C75A]/10' : 'bg-[#111111]/10'
+                }`}>
+                  {apiProvider === 'openai' ? (
+                    <div className="text-[#059669]">
+                      <p className="font-medium mb-1">OpenAI 이미지 생성</p>
+                      <ul className="text-xs space-y-0.5">
+                        {selectedModel === 'gpt-image-1' && (
+                          <>
+                            <li>• GPT-4o 기반 최신 이미지 생성 모델</li>
+                            <li>• 더 정확한 프롬프트 이해 및 고품질 출력</li>
+                          </>
+                        )}
+                        {selectedModel === 'dall-e-3' && (
+                          <>
+                            <li>• 고품질 이미지 생성 (1024x1024)</li>
+                            <li>• 이미지당 약 $0.04 비용</li>
+                          </>
+                        )}
+                        {selectedModel === 'dall-e-2' && (
+                          <>
+                            <li>• 빠른 생성 속도</li>
+                            <li>• 이미지당 약 $0.02 비용 (저렴)</li>
+                          </>
+                        )}
+                        <li>• API 키: platform.openai.com에서 발급</li>
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="text-[#3367d6]">
+                      <p className="font-medium mb-1">Google 이미지 생성</p>
+                      <ul className="text-xs space-y-0.5">
+                        {selectedModel.includes('gemini') && (
+                          <>
+                            <li>• Gemini 2.5 Flash 이미지 생성</li>
+                            <li>• 빠르고 고품질 이미지 생성</li>
+                          </>
+                        )}
+                        {selectedModel.includes('imagen') && (
+                          <>
+                            <li>• Google Imagen 3 - 최고 품질 이미지 생성</li>
+                            <li>• 사실적인 이미지 및 텍스트 렌더링</li>
+                          </>
+                        )}
+                        <li>• API 키: aistudio.google.com에서 발급</li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="text-[#3367d6]">
-                  <p className="font-medium mb-1">Google 이미지 생성</p>
-                  <ul className="text-xs space-y-0.5">
-                    {selectedModel.includes('gemini') && (
-                      <>
-                        <li>• Gemini 2.0 Flash 이미지 생성</li>
-                        <li>• 무료 (일일 한도 내)</li>
-                      </>
-                    )}
-                    {selectedModel.includes('imagen') && (
-                      <>
-                        <li>• Google Imagen 3 - 최고 품질 이미지 생성</li>
-                        <li>• 사실적인 이미지 및 텍스트 렌더링</li>
-                      </>
-                    )}
-                    <li>• API 키: aistudio.google.com에서 발급</li>
-                  </ul>
-                </div>
-              )}
-            </div>
 
-            <p className="text-xs text-[#9ca3af]">
-              API 키는 서버에 저장되지 않으며, 이미지 생성 요청에만 사용됩니다
-            </p>
+                <p className="text-xs text-[#9ca3af]">
+                  내 API 키를 사용하면 플랜 제한 없이 무제한으로 이미지를 생성할 수 있습니다
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -521,10 +662,10 @@ function ImageGeneratorContent() {
           <div className="space-y-6">
             {/* Blog Content Connection Banner */}
             {hasLoadedFromStore && (
-              <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-xl p-4 flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-[#10b981] shrink-0" />
+              <div className="bg-[#03C75A]/10 border border-[#03C75A]/30 rounded-xl p-4 flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-[#03C75A] shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-[#10b981]">
+                  <p className="text-sm font-medium text-[#03C75A]">
                     블로그 본문과 연동됨
                   </p>
                   <p className="text-xs text-[#059669]">
@@ -537,10 +678,10 @@ function ImageGeneratorContent() {
             {/* Header with Action Buttons */}
             <div className="flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-2xl font-bold text-[#111111] flex items-center gap-2">
-                <Image className="w-6 h-6 text-[#10b981]" />
+                <Image className="w-6 h-6 text-[#03C75A]" />
                 분석된 이미지 ({parsedImages.length}개)
                 {generatedCount > 0 && (
-                  <span className="text-sm font-normal text-[#10b981] bg-[#10b981]/10 px-2 py-1 rounded-full">
+                  <span className="text-sm font-normal text-[#03C75A] bg-[#03C75A]/10 px-2 py-1 rounded-full">
                     {generatedCount}개 생성됨
                   </span>
                 )}
@@ -549,11 +690,11 @@ function ImageGeneratorContent() {
                 <Button
                   size="sm"
                   className={apiProvider === 'openai'
-                    ? 'bg-[#10b981] hover:bg-[#059669] text-white'
-                    : 'bg-[#4285f4] hover:bg-[#3367d6] text-white'
+                    ? 'bg-[#03C75A] hover:bg-[#059669] text-white'
+                    : 'bg-[#111111] hover:bg-[#3367d6] text-white'
                   }
                   onClick={generateAllImages}
-                  disabled={isGeneratingAll || generatingCount > 0 || !apiKey}
+                  disabled={isGeneratingAll || generatingCount > 0 || (apiKeyMode === 'own' && !apiKey) || (apiKeyMode === 'site' && !isFreeModel && (!isFreeModel && !canUsePaidModel) || (isFreeModel && !canUseFreeModel))}
                 >
                   {isGeneratingAll || generatingCount > 0 ? (
                     <>
@@ -596,7 +737,7 @@ function ImageGeneratorContent() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-[#9ca3af] hover:text-[#ef4444] hover:bg-[#ef4444]/10"
+                        className="h-8 w-8 p-0 text-[#9ca3af] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
                         onClick={() => removeImage(image.id)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -644,11 +785,11 @@ function ImageGeneratorContent() {
                       <Button
                         className={`flex-1 h-10 text-white ${
                           apiProvider === 'openai'
-                            ? 'bg-[#10b981] hover:bg-[#059669]'
-                            : 'bg-[#4285f4] hover:bg-[#3367d6]'
+                            ? 'bg-[#03C75A] hover:bg-[#059669]'
+                            : 'bg-[#111111] hover:bg-[#3367d6]'
                         }`}
                         onClick={() => generateImage(image.id)}
-                        disabled={image.isGenerating || !apiKey}
+                        disabled={image.isGenerating || (apiKeyMode === 'own' && !apiKey) || (apiKeyMode === 'site' && !isFreeModel && (!isFreeModel && !canUsePaidModel) || (isFreeModel && !canUseFreeModel))}
                       >
                         {image.isGenerating ? (
                           <>
@@ -684,28 +825,17 @@ function ImageGeneratorContent() {
             </div>
 
             {/* Tips Section */}
-            <Card className={apiProvider === 'openai' ? 'border-[#10b981]/30 bg-[#10b981]/5' : 'border-[#4285f4]/30 bg-[#4285f4]/5'}>
+            <Card className={apiProvider === 'openai' ? 'border-[#03C75A]/30 bg-[#03C75A]/5' : 'border-[#111111]/30 bg-[#111111]/5'}>
               <CardContent className="py-4">
                 <h3 className="font-semibold text-[#111111] mb-2 flex items-center gap-2">
-                  <Sparkles className={`w-4 h-4 ${apiProvider === 'openai' ? 'text-[#10b981]' : 'text-[#4285f4]'}`} />
+                  <Sparkles className={`w-4 h-4 ${apiProvider === 'openai' ? 'text-[#03C75A]' : 'text-[#111111]'}`} />
                   사용 팁 ({apiProvider === 'openai' ? 'OpenAI DALL-E' : 'Google Gemini'})
                 </h3>
                 <ul className="text-sm text-[#6b7280] space-y-1">
-                  {apiProvider === 'openai' ? (
-                    <>
-                      <li>1. OpenAI API 키를 입력하면 DALL-E 3로 이미지를 직접 생성할 수 있습니다</li>
-                      <li>2. "전체생성" 버튼으로 모든 이미지를 순차적으로 생성합니다</li>
-                      <li>3. 생성된 이미지는 다운로드 버튼으로 저장할 수 있습니다</li>
-                      <li>4. 이미지 1장당 약 $0.04 (DALL-E 3 standard) 비용이 발생합니다</li>
-                    </>
-                  ) : (
-                    <>
-                      <li>1. Google AI Studio에서 API 키를 발급받으세요 (무료)</li>
-                      <li>2. Gemini 2.0 Flash의 실험적 이미지 생성 기능을 사용합니다</li>
-                      <li>3. 일일 무료 한도 내에서 이미지를 생성할 수 있습니다</li>
-                      <li>4. 이미지 품질이나 안정성은 OpenAI보다 낮을 수 있습니다</li>
-                    </>
-                  )}
+                  <li>1. &quot;사이트 API&quot;를 사용하면 별도 키 없이 플랜 한도 내에서 생성할 수 있습니다</li>
+                  <li>2. &quot;내 API 키&quot;를 사용하면 플랜 제한 없이 무제한으로 생성할 수 있습니다</li>
+                  <li>3. &quot;전체생성&quot; 버튼으로 모든 이미지를 순차적으로 생성합니다</li>
+                  <li>4. 생성된 이미지는 다운로드 버튼으로 저장할 수 있습니다</li>
                 </ul>
               </CardContent>
             </Card>

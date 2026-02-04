@@ -27,8 +27,8 @@ import { generateEnglishPrompt } from '@/lib/image-prompt-utils';
 
 export function StepResult() {
   const store = useAppStore();
-  const { user } = useAuth();
-  const { generatedContent, businessName, category, setCurrentStep, reset, setGeneratedContent, apiKey, apiProvider, setExtractedImagePrompts, mainKeyword, searchIntent } = store;
+  const { user, getAuthHeaders } = useAuth();
+  const { generatedContent, businessName, category, setCurrentStep, reset, setGeneratedContent, apiProvider, setExtractedImagePrompts, mainKeyword, searchIntent } = store;
   const [presetName, setPresetName] = useState('');
   const [modifyRequest, setModifyRequest] = useState('');
   const [isModifying, setIsModifying] = useState(false);
@@ -94,12 +94,12 @@ export function StepResult() {
     try {
       const prompt = generateModifyPrompt(generatedContent, modifyRequest);
       const endpoint = apiProvider === 'gemini' ? '/api/gemini/generate' : '/api/openai/generate';
+      const authHeaders = await getAuthHeaders();
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
-          apiKey,
           prompt,
         }),
       });
@@ -201,23 +201,21 @@ export function StepResult() {
       });
 
       // 2. Supabase에 임베딩과 함께 저장 (고급 RAG)
-      if (apiKey) {
-        try {
-          await savePostWithEmbedding(
-            postId,
-            user.uid,
-            title,
-            generatedContent,
-            selectedPostType,
-            category,
-            apiKey,
-            apiProvider
-          );
-          console.log('Post saved with embedding to Supabase');
-        } catch (embeddingError) {
-          // 임베딩 저장 실패해도 Firebase 저장은 성공했으므로 경고만 표시
-          console.warn('Embedding save failed (non-critical):', embeddingError);
-        }
+      try {
+        await savePostWithEmbedding(
+          postId,
+          user.uid,
+          title,
+          generatedContent,
+          selectedPostType,
+          category,
+          '',
+          apiProvider
+        );
+        console.log('Post saved with embedding to Supabase');
+      } catch (embeddingError) {
+        // 임베딩 저장 실패해도 Firebase 저장은 성공했으므로 경고만 표시
+        console.warn('Embedding save failed (non-critical):', embeddingError);
       }
 
       setPostSaved(true);
@@ -303,7 +301,7 @@ export function StepResult() {
         {/* Modify Content Section */}
         <div className="border-t border-[#eeeeee] pt-6">
           <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-            <Pencil className="w-4 h-4 text-[#6366f1]" />
+            <Pencil className="w-4 h-4 text-[#f72c5b]" />
             글 추가 수정
           </h3>
           <div className="space-y-3">
@@ -311,10 +309,10 @@ export function StepResult() {
               placeholder="수정하고 싶은 내용을 입력하세요 (예: 더 친근한 톤으로 바꿔줘, CTA를 더 강하게 해줘, 가격 부분을 좀 더 자세히 써줘)"
               value={modifyRequest}
               onChange={(e) => setModifyRequest(e.target.value)}
-              className="min-h-[80px] bg-white border-[#eeeeee] focus:border-[#6366f1] resize-none"
+              className="min-h-[80px] bg-white border-[#eeeeee] focus:border-[#f72c5b] resize-none"
             />
             <Button
-              className="w-full h-11 bg-[#6366f1] hover:bg-[#5558e3] text-white"
+              className="w-full h-11 bg-[#111111] hover:bg-[#333333] text-white"
               onClick={handleModify}
               disabled={isModifying || !modifyRequest.trim()}
             >
@@ -338,13 +336,13 @@ export function StepResult() {
           <div className="border-t border-[#eeeeee] pt-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium flex items-center gap-2">
-                <Image className="w-4 h-4 text-[#10b981]" />
+                <Image className="w-4 h-4 text-[#03C75A]" />
                 AI 이미지 생성용 프롬프트 (나노바나나)
               </h3>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-3 text-xs border-[#10b981] text-[#10b981] hover:bg-[#10b981] hover:text-white transition-colors"
+                className="h-8 px-3 text-xs border-[#03C75A] text-[#03C75A] hover:bg-[#03C75A] hover:text-white transition-colors"
                 onClick={() => {
                   // 이미지 프롬프트를 store에 저장 후 이미지 생성기 페이지로 이동
                   setExtractedImagePrompts(imagePrompts);
@@ -385,7 +383,7 @@ export function StepResult() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="shrink-0 h-8 px-3 text-xs border-[#10b981]/50 text-[#10b981] hover:bg-[#10b981]/10"
+                    className="shrink-0 h-8 px-3 text-xs border-[#03C75A]/50 text-[#03C75A] hover:bg-[#03C75A]/10"
                     onClick={() => copyPrompt(item.english)}
                   >
                     <Copy className="w-3 h-3 mr-1" />
@@ -404,9 +402,9 @@ export function StepResult() {
         {user && (
           <div className="border-t border-[#eeeeee] pt-6">
             <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-              <CloudUpload className="w-4 h-4 text-[#10b981]" />
+              <CloudUpload className="w-4 h-4 text-[#03C75A]" />
               마이페이지에 저장
-              <span className="text-xs text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-[#03C75A] bg-[#03C75A]/10 px-2 py-0.5 rounded-full">
                 SEO 주기 관리
               </span>
             </h3>
@@ -432,8 +430,8 @@ export function StepResult() {
               <Button
                 className={`flex-1 h-11 ${
                   postSaved
-                    ? 'bg-[#10b981] hover:bg-[#059669]'
-                    : 'bg-[#10b981] hover:bg-[#059669]'
+                    ? 'bg-[#03C75A] hover:bg-[#059669]'
+                    : 'bg-[#03C75A] hover:bg-[#059669]'
                 }`}
                 onClick={savePostToCloud}
                 disabled={isSavingPost || postSaved}
@@ -462,10 +460,10 @@ export function StepResult() {
         {/* Save Preset */}
         <div className="border-t border-[#eeeeee] pt-6">
           <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-            <Save className="w-4 h-4 text-yellow-400" />
+            <Save className="w-4 h-4 text-[#f72c5b]" />
             프리셋으로 저장
             {user && (
-              <span className="text-xs text-[#10b981] bg-[#10b981]/10 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-[#03C75A] bg-[#03C75A]/10 px-2 py-0.5 rounded-full">
                 클라우드 저장
               </span>
             )}
@@ -497,7 +495,7 @@ export function StepResult() {
           <Button
             variant="outline"
             className="h-12 px-6 border-[#eeeeee] hover:bg-[#f5f5f5]"
-            onClick={() => setCurrentStep(3)}
+            onClick={() => setCurrentStep(2)}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             다시 생성
@@ -517,15 +515,15 @@ export function StepResult() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <ImagePlus className="w-5 h-5 text-[#10b981]" />
+              <ImagePlus className="w-5 h-5 text-[#03C75A]" />
               이미지 생성기
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
             {/* Coming Soon Content */}
             <div className="text-center py-8">
-              <div className="w-20 h-20 rounded-full bg-[#10b981]/10 flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-10 h-10 text-[#10b981]" />
+              <div className="w-20 h-20 rounded-full bg-[#03C75A]/10 flex items-center justify-center mx-auto mb-4">
+                <Sparkles className="w-10 h-10 text-[#03C75A]" />
               </div>
               <h3 className="text-xl font-bold text-[#111111] mb-2">준비 중입니다</h3>
               <p className="text-[#6b7280] mb-6">
@@ -547,7 +545,7 @@ export function StepResult() {
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold text-[#111111] flex items-center gap-2">
-                    <Image className="w-4 h-4 text-[#10b981]" />
+                    <Image className="w-4 h-4 text-[#03C75A]" />
                     생성된 이미지 프롬프트 ({imagePrompts.length}개)
                   </h4>
                   <Button
@@ -601,7 +599,7 @@ export function StepResult() {
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4 border-t">
               <Link href="/image-generator" className="flex-1">
-                <Button className="w-full bg-[#10b981] hover:bg-[#059669] text-white">
+                <Button className="w-full bg-[#03C75A] hover:bg-[#059669] text-white">
                   이미지 생성기 페이지로 이동
                 </Button>
               </Link>

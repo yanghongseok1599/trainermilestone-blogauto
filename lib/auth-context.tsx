@@ -29,6 +29,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isSuperAdmin: boolean; // 시스템 관리자 (ccv5)
+  getAuthHeaders: () => Promise<Record<string, string>>;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signInAsAdmin: (username: string, password: string) => boolean;
@@ -242,12 +243,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // API 요청용 인증 헤더 반환 (관리자는 쿠키 사용, 일반 유저는 Firebase ID 토큰)
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    if (isSuperAdmin) return {}; // 관리자는 쿠키로 인증
+    if (user) {
+      try {
+        const token = await user.getIdToken();
+        return { 'Authorization': `Bearer ${token}` };
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
         isSuperAdmin,
+        getAuthHeaders,
         signInWithGoogle,
         signInWithEmail,
         signInAsAdmin,

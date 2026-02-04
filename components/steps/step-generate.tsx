@@ -6,176 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, Wand2, ArrowLeft, Check, Sparkles, Search, BookOpen, CreditCard, Navigation, MapPin, Star, Edit3, User, Target, AlertTriangle, ExternalLink, Zap, FileText } from 'lucide-react';
+import { Loader2, Wand2, ArrowLeft, Check, Sparkles, Star, Edit3, User, Target, AlertTriangle, ExternalLink, FileText } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FitnessCategory } from '@/types';
-import { generate333Prompt, generate333PromptLite } from '@/lib/prompts';
-import { SearchIntent, SEARCH_INTENT_INFO, ImageData } from '@/types';
+import { generate333Prompt, CONTENT_TYPE_INFO, ContentType } from '@/lib/prompts';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { generateRagContext, generateSimpleRagContext } from '@/lib/embedding-service';
 import { isSupabaseConfigured } from '@/lib/supabase';
-
-// Lucide 아이콘 매핑
-const INTENT_ICONS = {
-  BookOpen,
-  CreditCard,
-  Navigation,
-  MapPin
-} as const;
+import { validateGeneratedContent } from '@/lib/post-validate';
+import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
 
 const FEATURES = [
   { name: '333법칙', color: 'bg-[#f72c5b]/10 text-[#f72c5b] border-[#f72c5b]/30' },
   { name: '데이터베이스화', color: 'bg-[#111111]/10 text-[#111111] border-[#111111]/30' },
-  { name: 'Q&A 형식', color: 'bg-[#6366f1]/10 text-[#6366f1] border-[#6366f1]/30' },
-  { name: '속성값 명시', color: 'bg-[#f7a600]/10 text-[#f7a600] border-[#f7a600]/30' },
-  { name: '요약표', color: 'bg-[#ec4899]/10 text-[#ec4899] border-[#ec4899]/30' },
-  { name: '문맥 일치도', color: 'bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]/30' },
-  { name: '체크리스트', color: 'bg-[#f97316]/10 text-[#f97316] border-[#f97316]/30' },
-  { name: 'CTA 최적화', color: 'bg-[#ef4444]/10 text-[#ef4444] border-[#ef4444]/30' },
+  { name: 'Q&A 형식', color: 'bg-[#f72c5b]/10 text-[#f72c5b] border-[#f72c5b]/30' },
+  { name: '속성값 명시', color: 'bg-[#111111]/10 text-[#111111] border-[#111111]/30' },
+  { name: '요약표', color: 'bg-[#f72c5b]/10 text-[#f72c5b] border-[#f72c5b]/30' },
+  { name: '문맥 일치도', color: 'bg-[#111111]/10 text-[#111111] border-[#111111]/30' },
+  { name: '체크리스트', color: 'bg-[#f72c5b]/10 text-[#f72c5b] border-[#f72c5b]/30' },
+  { name: 'CTA 최적화', color: 'bg-[#111111]/10 text-[#111111] border-[#111111]/30' },
 ];
-
-const SEARCH_INTENTS: SearchIntent[] = ['location', 'information', 'transaction', 'navigation'];
-
-// 추천 결과 타입
-interface RecommendationResult {
-  intent: SearchIntent | null;
-  reason: string;
-  matchedKeywords: string[];
-  scores: Record<SearchIntent, number>;
-}
-
-// 이미지 분석 결과의 의미를 파악하여 추천 검색 의도 결정
-function getRecommendedIntent(images: ImageData[]): RecommendationResult {
-  const analysisTexts = images
-    .filter(img => img.analysis)
-    .map(img => img.analysis || '')
-    .join(' ');
-
-  if (!analysisTexts) {
-    return { intent: null, reason: '', matchedKeywords: [], scores: { location: 0, information: 0, transaction: 0, navigation: 0 } };
-  }
-
-  // 이미지 유형별 패턴 감지 (가중치 적용)
-  const patterns = {
-    // 자격증/전문성 관련 (장소형 - 업체 차별점 강조)
-    certification: {
-      keywords: ['자격증', '인증', '수료', '수료증', '자격', '전문성', '전문적', '신뢰', '권위', '교육', '이수', '성취', '공인', '국가', '체육지도자', '생활스포츠', '강사자격', '코치자격', '트레이너 자격', '라이센스'],
-      weight: 3,
-      intent: 'location' as SearchIntent,
-      description: '자격증/전문성 인증'
-    },
-    // 트레이너/강사 소개 (장소형 - 인적 자원 어필)
-    trainer: {
-      keywords: ['트레이너', '강사', '코치', '선생님', '대표', '원장', '소개', '프로필', '경력', '이력'],
-      weight: 2,
-      intent: 'location' as SearchIntent,
-      description: '트레이너/강사 소개'
-    },
-    // 시설/환경 (장소형)
-    facility: {
-      keywords: ['시설', '내부', '인테리어', '공간', '기구', '장비', '환경', '쾌적', '청결', '깨끗', '넓', '최신', '샤워실', '락커', '탈의실'],
-      weight: 2,
-      intent: 'location' as SearchIntent,
-      description: '시설/환경'
-    },
-    // 후기/결과 (장소형 - 신뢰 구축)
-    review: {
-      keywords: ['후기', '비포', '애프터', '변화', '결과', '수강생', '회원', '성공', '감량', '증량', '다이어트'],
-      weight: 2,
-      intent: 'location' as SearchIntent,
-      description: '회원 후기/결과'
-    },
-    // 운동 방법/정보 (정보형)
-    exercise: {
-      keywords: ['운동 방법', '자세', '동작', '폼', '가이드', '팁', '루틴', '프로그램 설명', '효과', '원리', '주의사항'],
-      weight: 2,
-      intent: 'information' as SearchIntent,
-      description: '운동 방법/정보'
-    },
-    // 가격/이벤트 (거래형)
-    price: {
-      keywords: ['가격', '비용', '요금', '할인', '이벤트', '프로모션', '회원권', '패키지', '혜택', '무료', '특가', '오픈', '등록'],
-      weight: 3,
-      intent: 'transaction' as SearchIntent,
-      description: '가격/이벤트 정보'
-    },
-    // 위치/찾아오는 길 (이동형)
-    navigation: {
-      keywords: ['외관', '건물', '입구', '간판', '찾아오', '오시는', '주차', '주소', '약도', '지도', '교통', '역', '출구', '도보'],
-      weight: 3,
-      intent: 'navigation' as SearchIntent,
-      description: '위치/찾아오는 길'
-    }
-  };
-
-  // 점수 계산
-  const scores: Record<SearchIntent, number> = {
-    location: 0,
-    information: 0,
-    transaction: 0,
-    navigation: 0
-  };
-
-  const detectedPatterns: { name: string; description: string; keywords: string[] }[] = [];
-
-  Object.entries(patterns).forEach(([name, pattern]) => {
-    const matchedKeywords: string[] = [];
-    pattern.keywords.forEach(kw => {
-      if (analysisTexts.includes(kw)) {
-        matchedKeywords.push(kw);
-      }
-    });
-
-    if (matchedKeywords.length > 0) {
-      scores[pattern.intent] += matchedKeywords.length * pattern.weight;
-      detectedPatterns.push({
-        name,
-        description: pattern.description,
-        keywords: matchedKeywords
-      });
-    }
-  });
-
-  // 가장 높은 점수를 가진 의도 반환
-  const maxScore = Math.max(...Object.values(scores));
-  if (maxScore === 0) {
-    return { intent: null, reason: '분석된 이미지에서 특징을 찾지 못했습니다', matchedKeywords: [], scores };
-  }
-
-  const recommended = Object.entries(scores).find(([, score]) => score === maxScore)?.[0] as SearchIntent;
-
-  // 추천 근거 생성 (감지된 패턴 기반)
-  const intentNames: Record<SearchIntent, string> = {
-    location: '장소형',
-    information: '정보형',
-    transaction: '거래형',
-    navigation: '이동형'
-  };
-
-  const intentReasons: Record<SearchIntent, string> = {
-    location: '업체의 강점과 차별점을 부각하여 "여기가 좋겠다"라는 확신을 주는',
-    information: '운동 방법과 정보를 알려주어 전문성을 어필하는',
-    transaction: '가격과 혜택 정보로 등록/구매 결정을 유도하는',
-    navigation: '찾아오는 방법을 상세히 안내하여 방문을 유도하는'
-  };
-
-  // 감지된 주요 패턴들로 근거 생성
-  const topPatterns = detectedPatterns
-    .sort((a, b) => b.keywords.length - a.keywords.length)
-    .slice(0, 2);
-
-  const patternDescriptions = topPatterns.map(p => p.description).join(', ');
-  const allMatchedKeywords = topPatterns.flatMap(p => p.keywords);
-  const uniqueMatched = [...new Set(allMatchedKeywords)].slice(0, 4);
-
-  const reason = `이미지에서 ${patternDescriptions} 관련 내용(${uniqueMatched.join(', ')})이 감지되어, ${intentReasons[recommended]} ${intentNames[recommended]} 글쓰기를 추천합니다.`;
-
-  return { intent: recommended, reason, matchedKeywords: uniqueMatched, scores };
-}
 
 // 업종별 페르소나 & 타겟 추천
 interface PersonaTargetRecommendation {
@@ -215,6 +69,16 @@ function getPersonaTargetRecommendation(category: FitnessCategory, targetAudienc
       { label: '코치', description: '복싱 지도 경력이 있는 코치 시점' },
       { label: 'FC(상담사)', description: '회원 상담과 등록을 담당하는 FC 시점' },
     ],
+    '바레': [
+      { label: '원장', description: '바레 스튜디오를 운영하는 원장 시점' },
+      { label: '강사', description: '바레 전문 강사 시점' },
+      { label: 'FC(상담사)', description: '회원 상담과 등록을 담당하는 FC 시점' },
+    ],
+    '기타': [
+      { label: '대표/원장', description: '해당 시설을 운영하는 대표 시점' },
+      { label: '전문 강사/코치', description: '회원을 지도하는 전문 강사 시점' },
+      { label: 'FC(상담사)', description: '회원 상담과 등록을 담당하는 FC 시점' },
+    ],
   };
 
   const categoryTargets: Record<FitnessCategory, { label: string; description: string }[]> = {
@@ -248,6 +112,16 @@ function getPersonaTargetRecommendation(category: FitnessCategory, targetAudienc
       { label: '다이어트 운동 찾는 자', description: '재미있게 살 빼는 운동을 찾는 사람' },
       { label: '자기방어 배우고 싶은 자', description: '호신술에 관심 있는 20-30대' },
     ],
+    '바레': [
+      { label: '체형 교정 관심자', description: '자세 교정과 체형 관리에 관심 있는 여성' },
+      { label: '바레 입문자', description: '바레를 처음 시작하려는 20-40대 여성' },
+      { label: '발레 기초 배우고 싶은 자', description: '발레 동작 기반 운동에 관심 있는 사람' },
+    ],
+    '기타': [
+      { label: '운동 시설 찾는 사람', description: '주변에서 해당 운동 시설을 찾는 사람' },
+      { label: '운동 입문자', description: '해당 운동을 처음 시작하려는 사람' },
+      { label: '운동 재시작자', description: '오래 쉬다가 다시 운동을 시작하려는 사람' },
+    ],
   };
 
   // 타겟 고객 정보가 있으면 첫 번째로 추가
@@ -264,14 +138,9 @@ function getPersonaTargetRecommendation(category: FitnessCategory, targetAudienc
 
 export function StepGenerate() {
   const store = useAppStore();
-  const { user } = useAuth();
+  const { user, getAuthHeaders } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [showQuotaError, setShowQuotaError] = useState(false);
-
-  // 이미지 분석 기반 추천 의도 계산
-  const recommendation = useMemo(() => {
-    return getRecommendedIntent(store.images);
-  }, [store.images]);
 
   // 페르소나 & 타겟 추천
   const personaTargetRec = useMemo(() => {
@@ -280,53 +149,56 @@ export function StepGenerate() {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    toast.info(store.liteMode ? '라이트 모드로 빠르게 생성 중...' : '블로그 글을 생성하고 있습니다...');
+    toast.info('블로그 글을 생성하고 있습니다...');
 
     try {
-      // 라이트 모드: 약 70% 토큰 절약
-      const prompt = store.liteMode ? generate333PromptLite(store) : generate333Prompt(store);
+      const prompt = generate333Prompt(store);
       const endpoint = store.apiProvider === 'gemini' ? '/api/gemini/generate' : '/api/openai/generate';
 
-      // 고급 RAG 컨텍스트 생성 (로그인 사용자만, 라이트 모드에서는 간소화)
-      let ragContext = '';
-      if (user && !store.liteMode) {
-        // 라이트 모드에서는 RAG 스킵 (토큰 절약)
+      // 팀 멤버인 경우 팀 소유자의 API 키 가져오기
+      let teamApiKey = '';
+      if (user) {
         try {
-          // Supabase가 설정되어 있고 API 키가 있으면 고급 RAG (벡터 검색) 사용
-          if (isSupabaseConfigured() && store.apiKey) {
-            console.log('Using advanced RAG with Supabase vector search...');
+          const membership = await getMyTeamMembership(user.uid);
+          if (membership) {
+            const ownerSettings = await getTeamOwnerApiSettings(membership.ownerId);
+            if (ownerSettings?.apiKey) {
+              teamApiKey = ownerSettings.apiKey;
+            }
+          }
+        } catch (teamError) {
+          console.error('Team API key fetch failed:', teamError);
+        }
+      }
+
+      // RAG 컨텍스트 생성 (로그인 사용자만)
+      let ragContext = '';
+      if (user) {
+        try {
+          if (isSupabaseConfigured()) {
             ragContext = await generateRagContext(
               user.uid,
               store.mainKeyword,
               store.category,
-              store.apiKey,
+              teamApiKey,
               store.apiProvider
             );
           } else {
-            // Supabase 미설정 시 단순 RAG (Firebase 최근 글만)
-            console.log('Using simple RAG with Firebase...');
             ragContext = await generateSimpleRagContext(user.uid);
-          }
-
-          if (ragContext) {
-            console.log('RAG context generated successfully');
           }
         } catch (ragError) {
           console.error('RAG context generation failed:', ragError);
-          // RAG 실패해도 계속 진행
         }
-      } else if (store.liteMode) {
-        console.log('Lite mode: Skipping RAG context to save tokens');
       }
 
+      const authHeaders = await getAuthHeaders();
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
-          apiKey: store.apiKey,
           prompt,
-          ragContext, // RAG 컨텍스트 추가
-          liteMode: store.liteMode, // 라이트 모드 전달
+          ragContext,
+          ...(teamApiKey ? { apiKey: teamApiKey } : {}),
         }),
       });
 
@@ -336,14 +208,32 @@ export function StepGenerate() {
         throw new Error(data.error);
       }
 
-      store.setGeneratedContent(data.content);
-      store.setCurrentStep(4);
-      toast.success('블로그 글이 생성되었습니다!');
+      // 후처리 검증
+      const validation = validateGeneratedContent(data.content);
+      const finalContent = validation.autoFixed || data.content;
+
+      store.setGeneratedContent(finalContent);
+      store.setCurrentStep(3);
+
+      if (validation.autoFixed) {
+        toast.success(`블로그 글 생성 완료! (마크다운/이모지 자동 제거됨, 품질 ${validation.score}점)`);
+      } else if (validation.issues.length > 0) {
+        const warnings = validation.issues.filter(i => i.type === 'warning').length;
+        toast.success(`블로그 글 생성 완료! (품질 ${validation.score}점, 주의사항 ${warnings}건)`);
+      } else {
+        toast.success('블로그 글이 생성되었습니다!');
+      }
+
+      // 활동 기록
+      if (user) {
+        import('@/lib/activity-log').then(({ logActivity }) => {
+          logActivity(user.uid, 'blog_generate', `"${store.mainKeyword}" 블로그 생성 (품질 ${validation.score}점)`);
+        });
+      }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다';
 
-      // 할당량 초과 에러 감지
       if (errorMessage.toLowerCase().includes('할당량') || errorMessage.toLowerCase().includes('quota')) {
         setShowQuotaError(true);
       } else {
@@ -361,8 +251,8 @@ export function StepGenerate() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-full bg-[#f7a600]/10 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-[#f7a600]" />
+            <div className="w-12 h-12 rounded-full bg-[#f72c5b]/10 flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-[#f72c5b]" />
             </div>
             <DialogTitle className="text-xl">API 할당량 초과</DialogTitle>
           </div>
@@ -372,22 +262,22 @@ export function StepGenerate() {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="bg-[#f7a600]/10 rounded-lg p-4 border border-[#f7a600]/30">
+          <div className="bg-[#f72c5b]/10 rounded-lg p-4 border border-[#f72c5b]/30">
             <h4 className="font-semibold text-[#111111] mb-2">해결 방법</h4>
             <ul className="text-sm text-[#6b7280] space-y-2">
               <li className="flex items-start gap-2">
-                <span className="text-[#f7a600] font-bold">1.</span>
+                <span className="text-[#f72c5b] font-bold">1.</span>
                 <span><strong>잠시 후 재시도</strong> - 약 1분 후 다시 시도해주세요</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-[#f7a600] font-bold">2.</span>
+                <span className="text-[#f72c5b] font-bold">2.</span>
                 <span><strong>새 API 키 발급</strong> - 다른 계정으로 API 키를 발급받으세요</span>
               </li>
             </ul>
           </div>
 
           <Button
-            className="w-full h-12 bg-[#4285f4] hover:bg-[#3367d6] text-white"
+            className="w-full h-12 bg-[#111111] hover:bg-[#333333] text-white"
             onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
@@ -408,7 +298,7 @@ export function StepGenerate() {
     <Card className="border border-[#eeeeee] shadow-lg bg-white">
       <CardHeader className="space-y-1 pb-6">
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-[#f7a600]/10 text-[#f7a600]">
+          <div className="p-2 rounded-lg bg-[#f72c5b]/10 text-[#f72c5b]">
             <Wand2 className="w-5 h-5" />
           </div>
           <CardTitle className="text-xl text-[#111111]">블로그 글 생성</CardTitle>
@@ -425,7 +315,7 @@ export function StepGenerate() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <p className="text-xs text-[#9ca3af]">업종</p>
-              <p className="font-medium text-[#111111]">{store.category}</p>
+              <p className="font-medium text-[#111111]">{store.category === '기타' && store.customCategoryName ? store.customCategoryName : store.category}</p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-[#9ca3af]">업체명</p>
@@ -441,7 +331,7 @@ export function StepGenerate() {
             </div>
             <div className="space-y-1">
               <p className="text-xs text-[#9ca3af]">테일 키워드</p>
-              <p className="font-medium text-[#6366f1]">{store.tailKeywords.filter(k => k).join(', ') || '-'}</p>
+              <p className="font-medium text-[#111111]">{store.tailKeywords.filter(k => k).join(', ') || '-'}</p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-[#9ca3af]">타겟 고객</p>
@@ -454,56 +344,34 @@ export function StepGenerate() {
           </div>
         </div>
 
-        {/* Lite Mode Toggle */}
+        {/* Content Type Selection */}
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-            <Zap className="w-4 h-4" />
-            생성 모드 선택
+            <FileText className="w-4 h-4" />
+            글 유형 선택
           </h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => store.setLiteMode(true)}
-              className={cn(
-                'p-4 rounded-xl border-2 text-left transition-all duration-200',
-                store.liteMode
-                  ? 'border-[#10b981] bg-[#10b981]/5'
-                  : 'border-[#eeeeee] bg-white hover:border-[#10b981]/50'
-              )}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Zap className={cn('w-5 h-5', store.liteMode ? 'text-[#10b981]' : 'text-[#6b7280]')} />
-                <span className={cn('font-semibold', store.liteMode ? 'text-[#10b981]' : 'text-[#111111]')}>
-                  라이트 모드
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {(Object.entries(CONTENT_TYPE_INFO) as [ContentType, { name: string; experienceElements: number; infoElements: number }][]).map(([key, info]) => (
+              <button
+                key={key}
+                onClick={() => store.setContentType(key)}
+                className={cn(
+                  'flex flex-col items-start gap-1 px-3 py-3 rounded-xl border text-left transition-all',
+                  store.contentType === key
+                    ? 'bg-[#f72c5b]/10 border-[#f72c5b] text-[#f72c5b]'
+                    : 'bg-white border-[#eeeeee] text-[#6b7280] hover:border-[#f72c5b]/50'
+                )}
+              >
+                <span className="text-sm font-medium">{info.name}</span>
+                <span className="text-[10px] opacity-70">
+                  경험 {info.experienceElements} : 정보 {info.infoElements}
                 </span>
-                <Badge className="bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30 text-[10px]">추천</Badge>
-              </div>
-              <p className="text-xs text-[#6b7280] mb-1">무료 API용 최적화</p>
-              <p className="text-[10px] text-[#9ca3af]">토큰 70% 절약, 빠른 생성</p>
-            </button>
-            <button
-              onClick={() => store.setLiteMode(false)}
-              className={cn(
-                'p-4 rounded-xl border-2 text-left transition-all duration-200',
-                !store.liteMode
-                  ? 'border-[#6366f1] bg-[#6366f1]/5'
-                  : 'border-[#eeeeee] bg-white hover:border-[#6366f1]/50'
-              )}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className={cn('w-5 h-5', !store.liteMode ? 'text-[#6366f1]' : 'text-[#6b7280]')} />
-                <span className={cn('font-semibold', !store.liteMode ? 'text-[#6366f1]' : 'text-[#111111]')}>
-                  프로 모드
-                </span>
-              </div>
-              <p className="text-xs text-[#6b7280] mb-1">상세한 가이드라인 적용</p>
-              <p className="text-[10px] text-[#9ca3af]">유료 API 또는 높은 한도 필요</p>
-            </button>
+              </button>
+            ))}
           </div>
-          {store.liteMode && (
-            <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-lg p-3 text-xs text-[#047857]">
-              라이트 모드는 프롬프트를 최적화하여 Gemini 무료 API로도 안정적으로 생성할 수 있습니다.
-            </div>
-          )}
+          <p className="text-xs text-[#9ca3af]">
+            글 유형에 따라 경험 서사와 정보의 비율이 달라집니다
+          </p>
         </div>
 
         {/* Custom Title Input */}
@@ -577,7 +445,7 @@ export function StepGenerate() {
                     store.setTailKeywords(newKeywords);
                   }}
                   placeholder={`테일 키워드 ${idx + 1}`}
-                  className="h-10 bg-white border-[#eeeeee] focus:border-[#6366f1] text-sm"
+                  className="h-10 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
                 />
               ))}
             </div>
@@ -616,7 +484,7 @@ export function StepGenerate() {
                       : 'bg-white text-[#6b7280] border-[#eeeeee] hover:border-[#f72c5b]/50'
                   )}
                 >
-                  {idx === 0 && <Star className="w-3 h-3 inline mr-1 text-[#f7a600]" />}
+                  {idx === 0 && <Star className="w-3 h-3 inline mr-1 text-[#f72c5b]" />}
                   {persona.label}
                 </button>
               ))}
@@ -633,7 +501,7 @@ export function StepGenerate() {
               value={store.targetReader}
               onChange={(e) => store.setTargetReader(e.target.value)}
               placeholder="예: 강남역 근처에서 퇴근 후 운동할 헬스장을 찾고 있는 20-30대 직장인"
-              className="min-h-[60px] bg-white border-[#eeeeee] focus:border-[#10b981] text-sm resize-none"
+              className="min-h-[60px] bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm resize-none"
             />
             <div className="flex flex-wrap gap-2 mt-2">
               {personaTargetRec.targets.map((target, idx) => (
@@ -643,78 +511,15 @@ export function StepGenerate() {
                   className={cn(
                     'px-3 py-1.5 text-xs rounded-full border transition-all',
                     store.targetReader === target.description
-                      ? 'bg-[#10b981] text-white border-[#10b981]'
-                      : 'bg-white text-[#6b7280] border-[#eeeeee] hover:border-[#10b981]/50'
+                      ? 'bg-[#111111] text-white border-[#111111]'
+                      : 'bg-white text-[#6b7280] border-[#eeeeee] hover:border-[#111111]/50'
                   )}
                 >
-                  {idx === 0 && <Star className="w-3 h-3 inline mr-1 text-[#f7a600]" />}
+                  {idx === 0 && <Star className="w-3 h-3 inline mr-1 text-[#f72c5b]" />}
                   {target.label}
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Search Intent Selection */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-            <Search className="w-4 h-4" />
-            검색 의도 선택 (글쓰기 유형)
-          </h3>
-          {/* AI 추천 표시 */}
-          {recommendation.intent && recommendation.reason && (
-            <div className="bg-[#f7a600]/10 border border-[#f7a600]/30 rounded-lg p-3">
-              <div className="flex items-start gap-2">
-                <Star className="w-4 h-4 text-[#f7a600] mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm text-[#111111] font-medium">AI 추천</p>
-                  <p className="text-xs text-[#6b7280] mt-1">{recommendation.reason}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            {SEARCH_INTENTS.map((intent) => {
-              const info = SEARCH_INTENT_INFO[intent];
-              const isSelected = store.searchIntent === intent;
-              const isRecommended = recommendation.intent === intent;
-              const IconComponent = INTENT_ICONS[info.iconName];
-              return (
-                <button
-                  key={intent}
-                  onClick={() => store.setSearchIntent(intent)}
-                  className={cn(
-                    'p-4 rounded-xl border-2 text-left transition-all duration-200 relative',
-                    isSelected
-                      ? 'border-[#f72c5b] bg-[#f72c5b]/5'
-                      : isRecommended
-                        ? 'border-[#f7a600] bg-[#f7a600]/5'
-                        : 'border-[#eeeeee] bg-white hover:border-[#f72c5b]/50'
-                  )}
-                >
-                  {isRecommended && (
-                    <div className="absolute -top-2 -right-2 bg-[#f7a600] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Star className="w-3 h-3 fill-current" />
-                      AI 추천
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 mb-1">
-                    <IconComponent className={cn(
-                      'w-5 h-5',
-                      isSelected ? 'text-[#f72c5b]' : isRecommended ? 'text-[#f7a600]' : 'text-[#6b7280]'
-                    )} />
-                    <span className={cn(
-                      'font-semibold',
-                      isSelected ? 'text-[#f72c5b]' : 'text-[#111111]'
-                    )}>
-                      {info.name}
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#6b7280] mb-2">{info.description}</p>
-                  <p className="text-xs text-[#9ca3af]">{info.strategy}</p>
-                </button>
-              );
-            })}
           </div>
         </div>
 
@@ -737,18 +542,69 @@ export function StepGenerate() {
           </div>
         </div>
 
-        {/* AI Model Info */}
-        <div className="bg-[#f9fafb] rounded-xl p-4 border border-[#eeeeee]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#111111] flex items-center justify-center text-lg font-bold text-white">
-              {store.apiProvider === 'gemini' ? 'G' : 'O'}
-            </div>
-            <div>
-              <p className="font-medium text-[#111111]">
-                {store.apiProvider === 'gemini' ? 'Google Gemini' : 'OpenAI ChatGPT'}
-              </p>
-              <p className="text-sm text-[#9ca3af]">AI 텍스트 생성 모델</p>
-            </div>
+        {/* AI Model Selection */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            AI 모델 선택
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => store.setApiProvider('gemini')}
+              className={cn(
+                'rounded-xl p-4 border text-left transition-all',
+                store.apiProvider === 'gemini'
+                  ? 'bg-[#f72c5b]/10 border-[#f72c5b] ring-1 ring-[#f72c5b]/30'
+                  : 'bg-[#f9fafb] border-[#eeeeee] hover:border-[#f72c5b]/50'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  'w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white',
+                  store.apiProvider === 'gemini' ? 'bg-[#f72c5b]' : 'bg-[#9ca3af]'
+                )}>
+                  G
+                </div>
+                <div>
+                  <p className="font-medium text-[#111111]">Google Gemini</p>
+                  <p className="text-xs text-[#9ca3af]">Gemini 2.5 Flash (추천)</p>
+                </div>
+              </div>
+              {store.apiProvider === 'gemini' && (
+                <div className="mt-2 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-[#f72c5b]" />
+                  <span className="text-xs text-[#f72c5b] font-medium">선택됨</span>
+                </div>
+              )}
+            </button>
+            <button
+              onClick={() => store.setApiProvider('openai')}
+              className={cn(
+                'rounded-xl p-4 border text-left transition-all',
+                store.apiProvider === 'openai'
+                  ? 'bg-[#111111]/10 border-[#111111] ring-1 ring-[#111111]/30'
+                  : 'bg-[#f9fafb] border-[#eeeeee] hover:border-[#111111]/50'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  'w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white',
+                  store.apiProvider === 'openai' ? 'bg-[#111111]' : 'bg-[#9ca3af]'
+                )}>
+                  O
+                </div>
+                <div>
+                  <p className="font-medium text-[#111111]">OpenAI ChatGPT</p>
+                  <p className="text-xs text-[#9ca3af]">GPT-4o mini (저렴)</p>
+                </div>
+              </div>
+              {store.apiProvider === 'openai' && (
+                <div className="mt-2 flex items-center gap-1">
+                  <Check className="w-3 h-3 text-[#111111]" />
+                  <span className="text-xs text-[#111111] font-medium">선택됨</span>
+                </div>
+              )}
+            </button>
           </div>
         </div>
 
@@ -757,7 +613,7 @@ export function StepGenerate() {
           <Button
             variant="outline"
             className="h-12 px-6 border-[#eeeeee] hover:bg-[#f5f5f5] text-[#111111]"
-            onClick={() => store.setCurrentStep(2)}
+            onClick={() => store.setCurrentStep(1)}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             이전

@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth-context';
 import { CATEGORIES, CATEGORY_ATTRIBUTES, ATTRIBUTE_PLACEHOLDERS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Building2, Target, Lightbulb, ArrowRight, ArrowLeft, Search, Loader2, MapPin, Plus, X, Save, Download, ChevronDown, ChevronRight, Pencil, Check, Trash2 } from 'lucide-react';
+import { Building2, Target, Lightbulb, ArrowRight, Search, Loader2, MapPin, Plus, X, Save, Download, ChevronDown, ChevronRight, Pencil, Check, Trash2, HelpCircle } from 'lucide-react';
 
 interface NaverPlaceResult {
   title: string;
@@ -18,6 +20,22 @@ interface NaverPlaceResult {
   roadAddress: string;
   telephone: string;
   link: string;
+}
+
+interface NaverPlaceDetail {
+  name: string;
+  category: string;
+  roadAddress: string;
+  fullAddress: string;
+  phone: string;
+  virtualPhone: string;
+  menus: string[];
+  businessHoursStatus: string;
+  businessHoursDescription: string;
+  dayOff: string | null;
+  dayOffDescription: string | null;
+  visitorReviewCount: string;
+  bookingUrl: string | null;
 }
 
 interface SavedBusinessInfo {
@@ -30,29 +48,17 @@ interface SavedBusinessInfo {
   customAttributes: string[];
   attributeLabels?: Record<string, string>;
   hiddenAttributes?: string[];
+  customCategoryName?: string;
   savedAt: string;
 }
 
 // 운영시간/휴무일 그룹
 const OPERATING_HOURS_ATTRS = ['평일 운영', '주말 운영', '공휴일 운영', '휴무일'];
 const OPERATING_HOURS_SECTION_TITLE_KEY = '섹션_운영시간';
-const OPERATING_HOURS_SECTION_DESC_KEY = '섹션_운영시간_설명';
 const DEFAULT_OPERATING_HOURS_TITLE = '운영시간 / 휴무일';
 
-// 가격 관련 속성 (별도 섹션으로 분리)
+// 가격 관련
 const PRICE_ATTR = '가격';
-const PRICE_SECTION_TITLE_KEY = '섹션_가격';
-const PRICE_SECTION_DESC_KEY = '섹션_가격_설명';
-const DEFAULT_PRICE_SECTION_TITLE = '가격 (상품별/개월별)';
-const DEFAULT_PRICE_SECTION_DESC = 'vat별도';
-
-// 기본 가격 항목
-const DEFAULT_PRICE_ITEMS = [
-  { id: '1개월', label: '1개월' },
-  { id: '3개월', label: '3개월' },
-  { id: '6개월', label: '6개월' },
-  { id: '12개월', label: '12개월' },
-];
 
 const STORAGE_KEY = 'blogbooster_saved_business_info';
 
@@ -67,7 +73,9 @@ export function StepBusinessInfo() {
     customAttributes,
     attributeLabels,
     hiddenAttributes,
+    customCategoryName,
     setCategory,
+    setCustomCategoryName,
     setBusinessInfo,
     setAttribute,
     setPlaceInfo,
@@ -79,6 +87,7 @@ export function StepBusinessInfo() {
     setHiddenAttributes,
     setAttributeLabels,
   } = useAppStore();
+  const { getAuthHeaders } = useAuth();
 
   const setCurrentStep = useAppStore((state) => state.setCurrentStep);
 
@@ -86,6 +95,7 @@ export function StepBusinessInfo() {
   const [searchResults, setSearchResults] = useState<NaverPlaceResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isFetchingDetail, setIsFetchingDetail] = useState(false);
   const [newAttributeName, setNewAttributeName] = useState('');
   const [showAddAttribute, setShowAddAttribute] = useState(false);
   const [hasSavedInfo, setHasSavedInfo] = useState(false);
@@ -94,24 +104,37 @@ export function StepBusinessInfo() {
   const [isOperatingHoursOpen, setIsOperatingHoursOpen] = useState(false);
   // 가격 섹션 열기/닫기
   const [isPriceOpen, setIsPriceOpen] = useState(false);
-  // 가격 항목 추가
-  const [newPriceItem, setNewPriceItem] = useState('');
-  const [showAddPriceItem, setShowAddPriceItem] = useState(false);
   // 라벨 편집 모드
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [tempLabel, setTempLabel] = useState('');
-  // 가격 섹션 타이틀 편집
-  const [isEditingPriceTitle, setIsEditingPriceTitle] = useState(false);
-  const [tempPriceTitle, setTempPriceTitle] = useState('');
-  // 가격 섹션 설명 편집
-  const [isEditingPriceDesc, setIsEditingPriceDesc] = useState(false);
-  const [tempPriceDesc, setTempPriceDesc] = useState('');
   // 운영시간 섹션 타이틀 편집
   const [isEditingOperatingTitle, setIsEditingOperatingTitle] = useState(false);
   const [tempOperatingTitle, setTempOperatingTitle] = useState('');
-  // 운영시간 섹션 설명 편집
-  const [isEditingOperatingDesc, setIsEditingOperatingDesc] = useState(false);
-  const [tempOperatingDesc, setTempOperatingDesc] = useState('');
+
+  // ============================================================
+  // 입력 완성도 계산
+  // ============================================================
+  const completionInfo = useMemo(() => {
+    const items: { label: string; filled: boolean; required?: boolean; recommended?: boolean }[] = [
+      { label: '업체명', filled: !!businessName.trim(), required: true },
+      { label: '메인 키워드', filled: !!mainKeyword.trim(), required: true },
+      { label: '타겟 고객', filled: !!targetAudience.trim(), recommended: true },
+      { label: '핵심 차별점', filled: !!uniquePoint.trim(), recommended: true },
+      { label: '위치', filled: !!attributes['위치']?.trim() },
+      { label: '전화번호', filled: !!attributes['전화번호']?.trim() },
+      { label: '운영시간', filled: OPERATING_HOURS_ATTRS.some(a => !!attributes[a]?.trim()) },
+      { label: '가격', filled: !!attributes[PRICE_ATTR]?.trim() },
+    ];
+    const filled = items.filter(i => i.filled).length;
+    const total = items.length;
+    const percent = Math.round((filled / total) * 100);
+    return { items, filled, total, percent };
+  }, [businessName, mainKeyword, targetAudience, uniquePoint, attributes]);
+
+  // 운영시간 미입력 여부
+  const hasOperatingHours = OPERATING_HOURS_ATTRS.some(a => !!attributes[a]?.trim());
+  // 가격 미입력 여부
+  const hasPriceValue = !!attributes[PRICE_ATTR]?.trim();
 
   // Load saved info on mount
   useEffect(() => {
@@ -125,7 +148,7 @@ export function StepBusinessInfo() {
     }
   }, []);
 
-  const saveBusinessInfo = () => {
+  const saveBusinessInfo = (silent = false) => {
     const infoToSave: SavedBusinessInfo = {
       category,
       businessName,
@@ -136,11 +159,14 @@ export function StepBusinessInfo() {
       customAttributes,
       attributeLabels,
       hiddenAttributes,
+      customCategoryName,
       savedAt: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(infoToSave));
     setHasSavedInfo(true);
-    toast.success('내 정보가 저장되었습니다');
+    if (!silent) {
+      toast.success('내 정보가 저장되었습니다');
+    }
   };
 
   const loadSavedInfo = () => {
@@ -154,30 +180,23 @@ export function StepBusinessInfo() {
         targetAudience: info.targetAudience,
         uniquePoint: info.uniquePoint,
       });
-      // Set attributes
       Object.entries(info.attributes).forEach(([key, value]) => {
         setAttribute(key, value);
       });
-      // Set custom attributes
       if (info.customAttributes) {
         setCustomAttributes(info.customAttributes);
       }
-      // Set attribute labels
       if (info.attributeLabels) {
         setAttributeLabels(info.attributeLabels);
       }
-      // Set hidden attributes
       if (info.hiddenAttributes) {
         setHiddenAttributes(info.hiddenAttributes);
       }
+      if (info.customCategoryName) {
+        setCustomCategoryName(info.customCategoryName);
+      }
       toast.success('저장된 정보를 불러왔습니다');
     }
-  };
-
-  const deleteSavedInfo = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setHasSavedInfo(false);
-    toast.success('저장된 정보가 삭제되었습니다');
   };
 
   const handleNaverSearch = async () => {
@@ -190,9 +209,10 @@ export function StepBusinessInfo() {
     setShowResults(false);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch('/api/naver/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ query: searchQuery }),
       });
 
@@ -217,7 +237,7 @@ export function StepBusinessInfo() {
     }
   };
 
-  const handleSelectPlace = (place: NaverPlaceResult) => {
+  const handleSelectPlace = async (place: NaverPlaceResult) => {
     const categoryMap: Record<string, typeof category> = {
       '헬스클럽': '헬스장',
       '헬스장': '헬스장',
@@ -232,6 +252,7 @@ export function StepBusinessInfo() {
       '크로스핏': '크로스핏',
       '복싱': '복싱',
       '복싱장': '복싱',
+      '바레': '바레',
     };
 
     let detectedCategory: typeof category | null = null;
@@ -251,7 +272,6 @@ export function StepBusinessInfo() {
       ? `${addressParts[1]} ${detectedCategory || category}`
       : '';
 
-    // Build attributes to set
     const newAttributes: Record<string, string> = {};
     const address = place.roadAddress || place.address;
     if (address) {
@@ -261,7 +281,7 @@ export function StepBusinessInfo() {
       newAttributes['전화번호'] = place.telephone;
     }
 
-    // Set all place info at once to avoid timing issues
+    // 기본 정보 먼저 반영
     setPlaceInfo({
       category: detectedCategory || undefined,
       businessName: place.title,
@@ -272,13 +292,116 @@ export function StepBusinessInfo() {
     setShowResults(false);
     setSearchQuery('');
 
-    // Show what was loaded
     const loadedItems = ['업체명'];
     if (address) loadedItems.push('위치');
     if (place.telephone && place.telephone.trim()) {
       loadedItems.push('전화번호');
     }
-    toast.success(`"${place.title}" 정보 불러옴 (${loadedItems.join(', ')})`);
+    toast.success(`"${place.title}" 기본 정보 불러옴 (${loadedItems.join(', ')})`);
+
+    // 상세 정보 (운영시간, 가격 등) 추가 조회
+    setIsFetchingDetail(true);
+    try {
+      const detailAuthHeaders = await getAuthHeaders();
+      const detailRes = await fetch('/api/naver/place-detail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...detailAuthHeaders },
+        body: JSON.stringify({ query: place.title }),
+      });
+      const detailData = await detailRes.json();
+
+      if (detailData.details && detailData.details.length > 0) {
+        // 이름이 가장 유사한 결과 찾기
+        const detail: NaverPlaceDetail = detailData.details.find(
+          (d: NaverPlaceDetail) => d.name.replace(/\s/g, '') === place.title.replace(/\s/g, '')
+        ) || detailData.details[0];
+
+        const extraItems: string[] = [];
+
+        // 전화번호 보완 (기존에 없으면 virtualPhone 사용)
+        if (!place.telephone?.trim() && detail.virtualPhone) {
+          setAttribute('전화번호', detail.virtualPhone);
+          extraItems.push('전화번호');
+        }
+
+        // 상세 주소 보완
+        if (detail.fullAddress && detail.fullAddress.length > (address?.length || 0)) {
+          setAttribute('위치', detail.fullAddress);
+        }
+
+        // 운영시간 정보
+        if (detail.businessHoursDescription) {
+          // "21:00에 영업 종료" → 운영시간 형태로 변환
+          const hoursText = detail.businessHoursStatus
+            ? `${detail.businessHoursStatus} (${detail.businessHoursDescription})`
+            : detail.businessHoursDescription;
+          setAttribute('평일 운영', hoursText);
+          extraItems.push('운영시간');
+        }
+
+        // 휴무일 정보
+        if (detail.dayOff || detail.dayOffDescription) {
+          setAttribute('휴무일', detail.dayOffDescription || detail.dayOff || '');
+          extraItems.push('휴무일');
+        }
+
+        // 가격/메뉴 정보
+        if (detail.menus && detail.menus.length > 0) {
+          // 이모지 및 특수문자 제거
+          const removeEmoji = (str: string) =>
+            str.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu, '').trim();
+          const cleanedMenus = detail.menus.map(removeEmoji);
+
+          // 홍보 문구 (가격 0 또는 "무료") → 핵심 차별점으로 활용
+          const promoItems = cleanedMenus
+            .filter(m => m.endsWith(' 0') || m.endsWith(' 무료') || m.includes('변동가격(업주문의)'))
+            .map(m => m
+              .replace(/\s+0$/, '')
+              .replace(/\s+무료$/, '')
+              .replace(/\s*변동가격\(업주문의\)/, '')
+              .trim()
+            )
+            .filter(m => m.length > 0);
+
+          // 실제 가격 항목
+          const priceLines = cleanedMenus
+            .filter(m => {
+              if (m.includes('변동가격(업주문의)')) return false;
+              if (m.endsWith(' 0')) return false;
+              if (m.endsWith(' 무료')) return false;
+              return true;
+            })
+            .map(m => {
+              // "구독 멤버십 BASIC 43,900" → "구독 멤버십 BASIC: 43,900원"
+              const priceMatch = m.match(/^(.+?)\s+([\d,]+)$/);
+              if (priceMatch) {
+                return `${priceMatch[1].trim()}: ${priceMatch[2]}원`;
+              }
+              return m;
+            });
+
+          if (priceLines.length > 0) {
+            setAttribute(PRICE_ATTR, priceLines.join('\n'));
+            extraItems.push('가격');
+          }
+
+          // 홍보 문구를 핵심 차별점에 추가
+          if (promoItems.length > 0 && !uniquePoint.trim()) {
+            setBusinessInfo({ uniquePoint: promoItems.join(', ') });
+            extraItems.push('차별점');
+          }
+        }
+
+        if (extraItems.length > 0) {
+          toast.success(`상세 정보 추가 완료 (${extraItems.join(', ')})`);
+        }
+      }
+    } catch {
+      // 상세 정보 조회 실패는 무시 (기본 정보는 이미 반영됨)
+      console.warn('플레이스 상세 정보 조회 실패');
+    } finally {
+      setIsFetchingDetail(false);
+    }
   };
 
   const handleNext = () => {
@@ -290,7 +413,9 @@ export function StepBusinessInfo() {
       toast.error('메인 키워드를 입력해주세요');
       return;
     }
-    setCurrentStep(2);
+    // 자동 저장 후 다음 단계
+    saveBusinessInfo(true);
+    setCurrentStep(1);
   };
 
   const handleAddAttribute = () => {
@@ -325,73 +450,15 @@ export function StepBusinessInfo() {
     (attr) => !OPERATING_HOURS_ATTRS.includes(attr) && attr !== PRICE_ATTR
   );
 
-  // 가격 항목 관리 (attributes에서 가격_ 접두사로 저장)
-  const getPriceItems = () => {
-    const items: { id: string; label: string; value: string }[] = [];
-    // 기본 항목 추가
-    DEFAULT_PRICE_ITEMS.forEach((item) => {
-      const key = `가격_${item.id}`;
-      items.push({
-        id: item.id,
-        label: attributeLabels[key] || item.label,
-        value: attributes[key] || '',
-      });
-    });
-    // 커스텀 가격 항목 추가
-    Object.keys(attributes).forEach((key) => {
-      if (key.startsWith('가격_') && !DEFAULT_PRICE_ITEMS.find((d) => `가격_${d.id}` === key)) {
-        const id = key.replace('가격_', '');
-        items.push({
-          id,
-          label: attributeLabels[key] || id,
-          value: attributes[key] || '',
-        });
-      }
-    });
-    return items;
-  };
-
-  const priceItems = getPriceItems();
-
-  // 가격 항목 추가
-  const handleAddPriceItem = () => {
-    if (!newPriceItem.trim()) {
-      toast.error('상품명을 입력해주세요');
-      return;
-    }
-    const key = `가격_${newPriceItem.trim()}`;
-    if (attributes[key] !== undefined) {
-      toast.error('이미 존재하는 상품입니다');
-      return;
-    }
-    setAttribute(key, '');
-    setNewPriceItem('');
-    setShowAddPriceItem(false);
-    toast.success(`"${newPriceItem.trim()}" 상품이 추가되었습니다`);
-  };
-
-  // 가격 항목 삭제
-  const handleDeletePriceItem = (id: string) => {
-    const key = `가격_${id}`;
-    const newAttrs = { ...attributes };
-    delete newAttrs[key];
-    // Store의 setAttributes 사용
-    Object.keys(newAttrs).forEach((k) => setAttribute(k, newAttrs[k]));
-    // 해당 키 삭제는 deleteAttribute 없이 빈값으로 처리
-    setAttribute(key, '');
-    toast.success(`"${attributeLabels[key] || id}" 상품이 삭제되었습니다`);
-  };
-
-  // 라벨 가져오기 (커스텀 라벨이 있으면 사용, 없으면 기본)
+  // 라벨 가져오기
   const getLabel = (attr: string) => attributeLabels[attr] || attr;
 
-  // 라벨 편집 시작
+  // 라벨 편집
   const startEditLabel = (attr: string) => {
     setEditingLabel(attr);
     setTempLabel(getLabel(attr));
   };
 
-  // 라벨 편집 완료
   const finishEditLabel = () => {
     if (editingLabel && tempLabel.trim()) {
       setAttributeLabel(editingLabel, tempLabel.trim());
@@ -430,10 +497,10 @@ export function StepBusinessInfo() {
                 autoFocus
               />
               <button
-                className="p-0.5 hover:bg-green-100 rounded"
+                className="p-0.5 hover:bg-[#03C75A]/10 rounded"
                 onClick={finishEditLabel}
               >
-                <Check className="w-3 h-3 text-green-600" />
+                <Check className="w-3 h-3 text-[#03C75A]" />
               </button>
             </div>
           ) : (
@@ -443,11 +510,11 @@ export function StepBusinessInfo() {
               </label>
               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
-                  className="p-0.5 hover:bg-blue-100 rounded"
+                  className="p-0.5 hover:bg-[#f5f5f5] rounded"
                   onClick={() => startEditLabel(attr)}
                   title="항목명 수정"
                 >
-                  <Pencil className="w-3 h-3 text-blue-500" />
+                  <Pencil className="w-3 h-3 text-[#111111]" />
                 </button>
                 <button
                   className="p-0.5 hover:bg-red-100 rounded"
@@ -493,12 +560,39 @@ export function StepBusinessInfo() {
           )}
         </div>
         <CardDescription className="text-base">블로그 글 생성에 필요한 정보를 입력하세요</CardDescription>
+
+        {/* 입력 완성도 프로그레스 */}
+        <div className="pt-2">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-[#6b7280]">입력 완성도</span>
+            <span className={cn(
+              'text-xs font-semibold',
+              completionInfo.percent >= 80 ? 'text-[#03C75A]' :
+              completionInfo.percent >= 50 ? 'text-[#f72c5b]' : 'text-[#6b7280]'
+            )}>
+              {completionInfo.percent}%
+            </span>
+          </div>
+          <div className="w-full h-2 bg-[#f5f5f5] rounded-full overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all duration-500',
+                completionInfo.percent >= 80 ? 'bg-[#03C75A]' :
+                completionInfo.percent >= 50 ? 'bg-[#f72c5b]' : 'bg-[#d1d5db]'
+              )}
+              style={{ width: `${completionInfo.percent}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-[#9ca3af] mt-1">
+            정보를 많이 입력할수록 AI가 더 정확하고 풍부한 블로그 글을 생성합니다
+          </p>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Category Selection */}
         <div className="space-y-3">
           <Label className="text-sm font-medium">업종 선택</Label>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
@@ -514,6 +608,14 @@ export function StepBusinessInfo() {
               </button>
             ))}
           </div>
+          {category === '기타' && (
+            <Input
+              placeholder="업종명을 직접 입력하세요 (예: 수영, 댄스, 폴댄스 등)"
+              value={customCategoryName}
+              onChange={(e) => setCustomCategoryName(e.target.value)}
+              className="mt-2"
+            />
+          )}
         </div>
 
         {/* Naver Place Search */}
@@ -543,6 +645,16 @@ export function StepBusinessInfo() {
               )}
             </Button>
           </div>
+          {isFetchingDetail ? (
+            <p className="text-xs text-[#03c75a] flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              상세 정보 불러오는 중... (운영시간, 가격 등)
+            </p>
+          ) : (
+            <p className="text-xs text-[#03c75a]/70">
+              검색하면 업체명, 위치, 전화번호, 운영시간, 가격이 자동 입력됩니다
+            </p>
+          )}
 
           {/* Search Results */}
           {showResults && searchResults.length > 0 && (
@@ -558,7 +670,7 @@ export function StepBusinessInfo() {
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-[#9ca3af]">{place.category}</span>
                     {place.telephone && (
-                      <span className="text-xs text-[#9ca3af]">• {place.telephone}</span>
+                      <span className="text-xs text-[#9ca3af]">&bull; {place.telephone}</span>
                     )}
                   </div>
                 </button>
@@ -601,6 +713,7 @@ export function StepBusinessInfo() {
             <Label htmlFor="targetAudience" className="flex items-center gap-1">
               <Target className="w-4 h-4 text-[#f72c5b]" />
               타겟 고객
+              <span className="text-[10px] text-[#f72c5b] bg-[#f72c5b]/10 px-1.5 py-0.5 rounded-full font-medium">권장</span>
             </Label>
             <Input
               id="targetAudience"
@@ -609,19 +722,28 @@ export function StepBusinessInfo() {
               onChange={(e) => setBusinessInfo({ targetAudience: e.target.value })}
               className="h-11 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
             />
+            <p className="text-[10px] text-[#9ca3af] flex items-start gap-1">
+              <HelpCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              AI가 이 고객층의 관심사와 고민에 맞춘 글을 작성합니다
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="uniquePoint" className="flex items-center gap-1">
-              <Lightbulb className="w-4 h-4 text-yellow-400" />
+              <Lightbulb className="w-4 h-4 text-[#f72c5b]" />
               핵심 차별점
+              <span className="text-[10px] text-[#f72c5b] bg-[#f72c5b]/10 px-1.5 py-0.5 rounded-full font-medium">권장</span>
             </Label>
             <Input
               id="uniquePoint"
-              placeholder="예: 1:1 맞춤 프로그램"
+              placeholder="예: 1:1 맞춤 프로그램, 24시 운영"
               value={uniquePoint}
               onChange={(e) => setBusinessInfo({ uniquePoint: e.target.value })}
               className="h-11 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
             />
+            <p className="text-[10px] text-[#9ca3af] flex items-start gap-1">
+              <HelpCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              블로그 글에서 경쟁업체와의 차별화 포인트로 강조됩니다
+            </p>
           </div>
         </div>
 
@@ -674,12 +796,12 @@ export function StepBusinessInfo() {
             </div>
           )}
 
-          {/* 기본 속성들 (운영시간 제외) */}
+          {/* 기본 속성들 (운영시간, 가격 제외) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {otherBaseAttrs.map(renderAttributeField)}
           </div>
 
-          {/* 운영시간/휴무일 - 열어보기 섹션 */}
+          {/* 운영시간/휴무일 - 접기/펼치기 섹션 */}
           {operatingHoursAttrs.length > 0 && (
             <div className="border border-[#eeeeee] rounded-lg overflow-hidden">
               <div className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors group">
@@ -692,7 +814,6 @@ export function StepBusinessInfo() {
                         if (e.key === 'Enter') {
                           if (tempOperatingTitle.trim()) {
                             setAttributeLabel(OPERATING_HOURS_SECTION_TITLE_KEY, tempOperatingTitle.trim());
-                            toast.success('섹션명이 변경되었습니다');
                           }
                           setIsEditingOperatingTitle(false);
                           setTempOperatingTitle('');
@@ -705,18 +826,17 @@ export function StepBusinessInfo() {
                       autoFocus
                     />
                     <button
-                      className="p-1 hover:bg-green-100 rounded"
+                      className="p-1 hover:bg-[#03C75A]/10 rounded"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (tempOperatingTitle.trim()) {
                           setAttributeLabel(OPERATING_HOURS_SECTION_TITLE_KEY, tempOperatingTitle.trim());
-                          toast.success('섹션명이 변경되었습니다');
                         }
                         setIsEditingOperatingTitle(false);
                         setTempOperatingTitle('');
                       }}
                     >
-                      <Check className="w-4 h-4 text-green-600" />
+                      <Check className="w-4 h-4 text-[#03C75A]" />
                     </button>
                     <button
                       className="p-1 hover:bg-gray-100 rounded"
@@ -731,27 +851,24 @@ export function StepBusinessInfo() {
                   </div>
                 ) : (
                   <button
-                    className="flex-1 flex items-center justify-start"
+                    className="flex-1 flex items-center justify-start gap-2"
                     onClick={() => setIsOperatingHoursOpen(!isOperatingHoursOpen)}
                   >
-                    <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-                      <span
-                        className="hover:text-blue-500 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTempOperatingTitle(attributeLabels[OPERATING_HOURS_SECTION_TITLE_KEY] || DEFAULT_OPERATING_HOURS_TITLE);
-                          setIsEditingOperatingTitle(true);
-                        }}
-                      >
-                        {attributeLabels[OPERATING_HOURS_SECTION_TITLE_KEY] || DEFAULT_OPERATING_HOURS_TITLE}
-                      </span>
+                    <span className="text-sm font-medium text-[#6b7280]">
+                      {attributeLabels[OPERATING_HOURS_SECTION_TITLE_KEY] || DEFAULT_OPERATING_HOURS_TITLE}
                     </span>
+                    {!isOperatingHoursOpen && !hasOperatingHours && (
+                      <span className="text-[10px] text-[#9ca3af] bg-[#f5f5f5] px-2 py-0.5 rounded-full">미입력</span>
+                    )}
+                    {!isOperatingHoursOpen && hasOperatingHours && (
+                      <span className="text-[10px] text-[#03C75A] bg-[#03C75A]/10 px-2 py-0.5 rounded-full">입력됨</span>
+                    )}
                   </button>
                 )}
                 <div className="flex items-center gap-1">
                   {!isEditingOperatingTitle && (
                     <button
-                      className="p-1 hover:bg-blue-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="p-1 hover:bg-[#f5f5f5] rounded opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={(e) => {
                         e.stopPropagation();
                         setTempOperatingTitle(attributeLabels[OPERATING_HOURS_SECTION_TITLE_KEY] || DEFAULT_OPERATING_HOURS_TITLE);
@@ -759,7 +876,7 @@ export function StepBusinessInfo() {
                       }}
                       title="섹션명 수정"
                     >
-                      <Pencil className="w-3.5 h-3.5 text-blue-500" />
+                      <Pencil className="w-3.5 h-3.5 text-[#111111]" />
                     </button>
                   )}
                   <button
@@ -782,266 +899,39 @@ export function StepBusinessInfo() {
             </div>
           )}
 
-          {/* 가격 - 열어보기 섹션 (상품별/개월별) */}
+          {/* 가격 - 텍스트 자유 입력 */}
           {hasPriceAttr && (
             <div className="border border-[#eeeeee] rounded-lg overflow-hidden">
-              <div className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors group">
-                {isEditingPriceTitle ? (
-                  <div className="flex items-center gap-2 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
-                    <Input
-                      value={tempPriceTitle}
-                      onChange={(e) => setTempPriceTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          if (tempPriceTitle.trim()) {
-                            setAttributeLabel(PRICE_SECTION_TITLE_KEY, tempPriceTitle.trim());
-                            toast.success('섹션명이 변경되었습니다');
-                          }
-                          setIsEditingPriceTitle(false);
-                          setTempPriceTitle('');
-                        } else if (e.key === 'Escape') {
-                          setIsEditingPriceTitle(false);
-                          setTempPriceTitle('');
-                        }
-                      }}
-                      className="h-7 text-sm py-0 px-2 w-48"
-                      autoFocus
-                    />
-                    <button
-                      className="p-1 hover:bg-green-100 rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (tempPriceTitle.trim()) {
-                          setAttributeLabel(PRICE_SECTION_TITLE_KEY, tempPriceTitle.trim());
-                          toast.success('섹션명이 변경되었습니다');
-                        }
-                        setIsEditingPriceTitle(false);
-                        setTempPriceTitle('');
-                      }}
-                    >
-                      <Check className="w-4 h-4 text-green-600" />
-                    </button>
-                    <button
-                      className="p-1 hover:bg-gray-100 rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsEditingPriceTitle(false);
-                        setTempPriceTitle('');
-                      }}
-                    >
-                      <X className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </div>
-                ) : isEditingPriceDesc ? (
-                  <div className="flex items-center gap-2 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-sm font-medium text-[#6b7280]">
-                      {attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE}
-                    </span>
-                    <Input
-                      value={tempPriceDesc}
-                      onChange={(e) => setTempPriceDesc(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          if (tempPriceDesc.trim()) {
-                            setAttributeLabel(PRICE_SECTION_DESC_KEY, tempPriceDesc.trim());
-                            toast.success('설명이 변경되었습니다');
-                          }
-                          setIsEditingPriceDesc(false);
-                          setTempPriceDesc('');
-                        } else if (e.key === 'Escape') {
-                          setIsEditingPriceDesc(false);
-                          setTempPriceDesc('');
-                        }
-                      }}
-                      className="h-6 text-xs py-0 px-2 w-24"
-                      autoFocus
-                    />
-                    <button
-                      className="p-1 hover:bg-green-100 rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (tempPriceDesc.trim()) {
-                          setAttributeLabel(PRICE_SECTION_DESC_KEY, tempPriceDesc.trim());
-                          toast.success('설명이 변경되었습니다');
-                        }
-                        setIsEditingPriceDesc(false);
-                        setTempPriceDesc('');
-                      }}
-                    >
-                      <Check className="w-3 h-3 text-green-600" />
-                    </button>
-                    <button
-                      className="p-1 hover:bg-gray-100 rounded"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsEditingPriceDesc(false);
-                        setTempPriceDesc('');
-                      }}
-                    >
-                      <X className="w-3 h-3 text-gray-500" />
-                    </button>
-                  </div>
+              <button
+                className="w-full flex items-center justify-between p-3 bg-[#f9fafb] hover:bg-[#f5f5f5] transition-colors"
+                onClick={() => setIsPriceOpen(!isPriceOpen)}
+              >
+                <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
+                  가격 정보
+                  {!isPriceOpen && !hasPriceValue && (
+                    <span className="text-[10px] text-[#9ca3af] bg-[#f5f5f5] px-2 py-0.5 rounded-full">미입력</span>
+                  )}
+                  {!isPriceOpen && hasPriceValue && (
+                    <span className="text-[10px] text-[#03C75A] bg-[#03C75A]/10 px-2 py-0.5 rounded-full">입력됨</span>
+                  )}
+                </span>
+                {isPriceOpen ? (
+                  <ChevronDown className="w-4 h-4 text-[#6b7280]" />
                 ) : (
-                  <button
-                    className="flex-1 flex items-center justify-start"
-                    onClick={() => setIsPriceOpen(!isPriceOpen)}
-                  >
-                    <span className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-                      <span
-                        className="hover:text-blue-500 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTempPriceTitle(attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE);
-                          setIsEditingPriceTitle(true);
-                        }}
-                      >
-                        {attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE}
-                      </span>
-                      <span
-                        className="text-xs text-[#9ca3af] hover:text-blue-500 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTempPriceDesc(attributeLabels[PRICE_SECTION_DESC_KEY] || DEFAULT_PRICE_SECTION_DESC);
-                          setIsEditingPriceDesc(true);
-                        }}
-                      >
-                        {attributeLabels[PRICE_SECTION_DESC_KEY] || DEFAULT_PRICE_SECTION_DESC}
-                      </span>
-                    </span>
-                  </button>
+                  <ChevronRight className="w-4 h-4 text-[#6b7280]" />
                 )}
-                <div className="flex items-center gap-1">
-                  {!isEditingPriceTitle && !isEditingPriceDesc && (
-                    <button
-                      className="p-1 hover:bg-blue-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTempPriceTitle(attributeLabels[PRICE_SECTION_TITLE_KEY] || DEFAULT_PRICE_SECTION_TITLE);
-                        setIsEditingPriceTitle(true);
-                      }}
-                      title="섹션명 수정"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-blue-500" />
-                    </button>
-                  )}
-                  <button
-                    className="p-1"
-                    onClick={() => setIsPriceOpen(!isPriceOpen)}
-                  >
-                    {isPriceOpen ? (
-                      <ChevronDown className="w-4 h-4 text-[#6b7280]" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-[#6b7280]" />
-                    )}
-                  </button>
-                </div>
-              </div>
+              </button>
               {isPriceOpen && (
-                <div className="p-3 bg-white space-y-3">
-                  {/* 가격 항목 목록 */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {priceItems.map((item) => {
-                      const key = `가격_${item.id}`;
-                      const isEditing = editingLabel === key;
-                      const isDefault = DEFAULT_PRICE_ITEMS.some((d) => d.id === item.id);
-
-                      return (
-                        <div key={item.id} className="space-y-1 relative group">
-                          <div className="flex items-center justify-between min-h-[20px]">
-                            {isEditing ? (
-                              <div className="flex items-center gap-1 flex-1">
-                                <Input
-                                  value={tempLabel}
-                                  onChange={(e) => setTempLabel(e.target.value)}
-                                  onKeyDown={(e) => e.key === 'Enter' && finishEditLabel()}
-                                  className="h-6 text-xs py-0 px-1 w-full"
-                                  autoFocus
-                                />
-                                <button
-                                  className="p-0.5 hover:bg-green-100 rounded"
-                                  onClick={finishEditLabel}
-                                >
-                                  <Check className="w-3 h-3 text-green-600" />
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <label className="text-xs font-medium text-[#6b7280] truncate flex-1">
-                                  {item.label}
-                                </label>
-                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    className="p-0.5 hover:bg-blue-100 rounded"
-                                    onClick={() => startEditLabel(key)}
-                                    title="상품명 수정"
-                                  >
-                                    <Pencil className="w-3 h-3 text-blue-500" />
-                                  </button>
-                                  {!isDefault && (
-                                    <button
-                                      className="p-0.5 hover:bg-red-100 rounded"
-                                      onClick={() => handleDeletePriceItem(item.id)}
-                                      title="상품 삭제"
-                                    >
-                                      <Trash2 className="w-3 h-3 text-red-500" />
-                                    </button>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          <Input
-                            placeholder="예: 150,000원"
-                            value={attributes[key] || ''}
-                            onChange={(e) => setAttribute(key, e.target.value)}
-                            className="h-10 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* 상품 추가 */}
-                  {showAddPriceItem ? (
-                    <div className="flex gap-2 p-3 bg-[#f9fafb] rounded-lg border border-[#eeeeee]">
-                      <Input
-                        placeholder="상품명 입력 (예: PT 10회, 개인레슨)"
-                        value={newPriceItem}
-                        onChange={(e) => setNewPriceItem(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddPriceItem()}
-                        className="h-9 bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm"
-                        autoFocus
-                      />
-                      <Button
-                        size="sm"
-                        className="h-9 px-3 bg-[#f72c5b] hover:bg-[#e01f4f] text-white"
-                        onClick={handleAddPriceItem}
-                      >
-                        추가
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 px-2"
-                        onClick={() => {
-                          setShowAddPriceItem(false);
-                          setNewPriceItem('');
-                        }}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-[#6b7280] hover:text-[#111111] hover:bg-[#f5f5f5]"
-                      onClick={() => setShowAddPriceItem(true)}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      상품 추가
-                    </Button>
-                  )}
+                <div className="p-3 bg-white space-y-2">
+                  <Textarea
+                    placeholder={`자유롭게 입력하세요. AI가 자동으로 정리합니다.\n\n예시:\n1개월 15만원\n3개월 39만원\n6개월 69만원\nPT 10회 50만원\n그룹수업 월 8만원\nvat 별도`}
+                    value={attributes[PRICE_ATTR] || ''}
+                    onChange={(e) => setAttribute(PRICE_ATTR, e.target.value)}
+                    className="min-h-[120px] bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm resize-none"
+                  />
+                  <p className="text-[10px] text-[#9ca3af]">
+                    상품명과 가격을 자유롭게 입력하면 AI가 블로그 글에 맞게 정리합니다
+                  </p>
                 </div>
               )}
             </div>
@@ -1054,12 +944,12 @@ export function StepBusinessInfo() {
             </div>
           )}
 
-          {/* Save Button under detailed info */}
+          {/* Save Button */}
           <div className="flex justify-end pt-2">
             <Button
               variant="outline"
               className="h-10 px-6 text-[#f72c5b] border-[#f72c5b]/50 hover:bg-[#f72c5b]/10"
-              onClick={saveBusinessInfo}
+              onClick={() => saveBusinessInfo()}
             >
               <Save className="w-4 h-4 mr-2" />
               내 정보 저장하기
@@ -1070,18 +960,10 @@ export function StepBusinessInfo() {
         {/* Navigation */}
         <div className="flex gap-3 pt-2">
           <Button
-            variant="outline"
-            className="h-12 px-6 border-[#eeeeee] hover:bg-[#f5f5f5]"
-            onClick={() => setCurrentStep(0)}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            이전
-          </Button>
-          <Button
             className="flex-1 h-12 text-base font-semibold bg-[#111111] text-white hover:bg-[#333333] transition-all duration-300 shadow-lg"
             onClick={handleNext}
           >
-            다음 단계
+            다음 단계 (자동 저장)
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
         </div>
