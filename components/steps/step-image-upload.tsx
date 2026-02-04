@@ -133,7 +133,10 @@ export function StepImageUpload() {
     const analysisResults: { analysis: string; analysisJson?: Record<string, unknown> }[] = [];
     const authHeaders = await getAuthHeaders();
 
-    for (const img of images) {
+    for (let i = 0; i < images.length; i++) {
+      // 두 번째 이미지부터 2초 딜레이 (Gemini API rate limit 방지)
+      if (i > 0) await new Promise(r => setTimeout(r, 2000));
+      const img = images[i];
       try {
         const endpoint = apiProvider === 'gemini' ? '/api/gemini/analyze' : '/api/openai/analyze';
         const response = await fetch(endpoint, {

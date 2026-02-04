@@ -81,63 +81,76 @@ ${businessContext}${userContext}
       'gemini-1.5-flash-latest',
     ];
     let lastError = '';
+    const MAX_RETRIES = 3;
 
     for (const apiVersion of apiVersions) {
       for (const model of models) {
-        try {
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { text: prompt },
-                    { inline_data: { mime_type: image.mimeType, data: image.data } }
-                  ]
-                }],
-                generationConfig: {
-                  temperature: 0.2,  // 낮은 온도로 일관된 JSON 출력
-                }
-              })
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          try {
+            const response = await fetch(
+              `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{
+                    parts: [
+                      { text: prompt },
+                      { inline_data: { mime_type: image.mimeType, data: image.data } }
+                    ]
+                  }],
+                  generationConfig: {
+                    temperature: 0.2,
+                  }
+                })
+              }
+            );
+
+            // 429 Rate Limit → 재시도 (지수 백오프)
+            if (response.status === 429) {
+              const waitSec = Math.pow(2, attempt + 1); // 2s, 4s, 8s
+              console.warn(`Gemini ${model} rate limited (429), retrying in ${waitSec}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+              await new Promise(r => setTimeout(r, waitSec * 1000));
+              continue;
             }
-          );
 
-          const data = await response.json();
+            const data = await response.json();
 
-          if (data.error) {
-            lastError = data.error.message || JSON.stringify(data.error);
-            if (!lastError.includes('quota')) {
+            if (data.error) {
+              lastError = data.error.message || JSON.stringify(data.error);
+              if (lastError.includes('quota') || lastError.includes('rate')) {
+                const waitSec = Math.pow(2, attempt + 1);
+                console.warn(`Gemini ${model} quota/rate error, retrying in ${waitSec}s`);
+                await new Promise(r => setTimeout(r, waitSec * 1000));
+                continue;
+              }
               console.error(`Gemini analyze ${apiVersion}/${model} error:`, lastError);
+              break; // 다른 모델로
             }
-            continue;
-          }
 
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (text) {
-            console.log(`Analyze success with ${apiVersion}/${model}`);
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (text) {
+              console.log(`Analyze success with ${apiVersion}/${model}`);
 
-            // JSON 파싱 시도
-            try {
-              const jsonStr = extractJson(text);
-              const analysisJson = JSON.parse(jsonStr);
-              // 구조화된 JSON + 원본 텍스트(폴백용) 모두 반환
-              return NextResponse.json({ analysis: text, analysisJson });
-            } catch {
-              // JSON 파싱 실패 시 텍스트만 반환 (폴백)
-              console.warn('JSON parse failed, returning raw text');
-              return NextResponse.json({ analysis: text });
+              try {
+                const jsonStr = extractJson(text);
+                const analysisJson = JSON.parse(jsonStr);
+                return NextResponse.json({ analysis: text, analysisJson });
+              } catch {
+                console.warn('JSON parse failed, returning raw text');
+                return NextResponse.json({ analysis: text });
+              }
             }
+            break; // 빈 응답이면 다음 모델로
+          } catch (modelError) {
+            console.error(`Gemini analyze ${apiVersion}/${model} fetch error:`, modelError);
+            break;
           }
-        } catch (modelError) {
-          console.error(`Gemini analyze ${apiVersion}/${model} fetch error:`, modelError);
-          continue;
         }
       }
     }
 
-    return NextResponse.json({ error: lastError }, { status: 400 });
+    return NextResponse.json({ error: lastError || '모든 모델에서 분석 실패' }, { status: 400 });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
