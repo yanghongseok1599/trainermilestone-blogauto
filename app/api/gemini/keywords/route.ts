@@ -7,8 +7,13 @@ export async function POST(request: NextRequest) {
     const { mainKeyword, category, businessName, imageContext, imageAnalysis, apiKey: clientApiKey } = await request.json();
 
     const useSiteApi = !clientApiKey;
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    const siteApiKeys = [
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_2,
+      process.env.GEMINI_API_KEY_3,
+    ].filter((k): k is string => !!k?.trim());
+    const apiKeys = clientApiKey ? [clientApiKey] : siteApiKeys;
+    if (apiKeys.length === 0) {
       return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
     }
 
@@ -53,17 +58,12 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
    - 업체 정보는 보조적으로 활용하고, 이미지와 기획 의도가 핵심입니다.` : ''}`;
 
     const model = 'gemini-2.5-flash';
-    const MAX_RETRIES = 3;
     let lastError = '';
 
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    for (let i = 0; i < apiKeys.length; i++) {
       try {
-        if (attempt > 0) {
-          await new Promise(r => setTimeout(r, attempt * 3000));
-        }
-
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeys[i]}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -96,7 +96,6 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
           break;
         }
 
-        // JSON 파싱
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
           lastError = 'JSON 파싱 실패';
@@ -111,7 +110,7 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
         });
       } catch (e) {
         lastError = e instanceof Error ? e.message : '알 수 없는 오류';
-        break;
+        continue;
       }
     }
 

@@ -134,18 +134,19 @@ export function StepImageUpload() {
     const authHeaders = await getAuthHeaders();
 
     const MAX_CLIENT_RETRIES = 3;
+    // 재시도 대기 시간: 15초, 30초 (rate limit 리셋 대기)
+    const RETRY_DELAYS = [15000, 30000];
 
     for (let i = 0; i < images.length; i++) {
-      // 이미지 간 3초 딜레이 (Gemini API rate limit 방지)
-      if (i > 0) await new Promise(r => setTimeout(r, 3000));
+      // 이미지 간 5초 딜레이 (Gemini API rate limit 방지)
+      if (i > 0) await new Promise(r => setTimeout(r, 5000));
       const img = images[i];
       let success = false;
 
       for (let retry = 0; retry < MAX_CLIENT_RETRIES && !success; retry++) {
         try {
-          // 재시도 시 추가 대기 (5초, 10초)
           if (retry > 0) {
-            const waitMs = retry * 5000;
+            const waitMs = RETRY_DELAYS[retry - 1];
             toast.info(`이미지 ${i + 1} 재시도 중... (${waitMs / 1000}초 대기)`);
             await new Promise(r => setTimeout(r, waitMs));
           }

@@ -52,8 +52,13 @@ export async function POST(request: NextRequest) {
     const { prompt, images, ragContext, liteMode, optimizedMode, apiKey: clientApiKey } = await request.json();
 
     const useSiteApi = !clientApiKey;
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    const siteApiKeys = [
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_2,
+      process.env.GEMINI_API_KEY_3,
+    ].filter((k): k is string => !!k?.trim());
+    const apiKeys = clientApiKey ? [clientApiKey] : siteApiKeys;
+    if (apiKeys.length === 0) {
       return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
     }
 
@@ -113,20 +118,15 @@ ${prompt}`;
     const maxOutputTokens = liteMode ? 4096 : optimizedMode ? 6144 : 8192;
 
     const model = 'gemini-2.5-flash';
-    const MAX_RETRIES = 3;
     let lastError = '';
     let isQuotaError = false;
 
     console.log(`Generating with liteMode=${liteMode}, optimizedMode=${optimizedMode}, maxOutputTokens=${maxOutputTokens}`);
 
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    for (let i = 0; i < apiKeys.length; i++) {
       try {
-        if (attempt > 0) {
-          await new Promise(r => setTimeout(r, attempt * 3000));
-        }
-
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeys[i]}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -143,7 +143,7 @@ ${prompt}`;
         if (response.status === 429) {
           isQuotaError = true;
           lastError = 'API 요청 한도 초과';
-          console.warn(`Gemini ${model} rate limited, attempt ${attempt + 1}/${MAX_RETRIES}`);
+          console.warn(`Gemini key ${i + 1}/${apiKeys.length} rate limited`);
           continue;
         }
 
@@ -155,13 +155,13 @@ ${prompt}`;
             isQuotaError = true;
             continue;
           }
-          console.error(`Gemini ${model} error:`, lastError);
+          console.error(`Gemini error:`, lastError);
           break;
         }
 
         const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (rawText) {
-          console.log(`Success with ${model} (attempt ${attempt + 1})`);
+          console.log(`Success with key ${i + 1}/${apiKeys.length}`);
 
           if (useSiteApi && authenticatedUserId) {
             const estimatedTokens = Math.ceil((prompt.length + rawText.length) / 2);
@@ -173,15 +173,15 @@ ${prompt}`;
         }
         break;
       } catch (fetchError) {
-        console.error(`Gemini ${model} fetch error:`, fetchError);
+        console.error(`Gemini fetch error (key ${i + 1}):`, fetchError);
         lastError = fetchError instanceof Error ? fetchError.message : 'Fetch error';
-        break;
+        continue;
       }
     }
 
     if (isQuotaError) {
       return NextResponse.json({
-        error: 'API 무료 할당량이 초과되었습니다. 잠시 후 다시 시도하거나, 새로운 API 키를 발급받아 사용해주세요. (Google AI Studio에서 무료 발급 가능)'
+        error: 'API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.'
       }, { status: 429 });
     }
 

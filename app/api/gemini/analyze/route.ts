@@ -19,8 +19,16 @@ export async function POST(request: NextRequest) {
     const { image, category, businessInfo, context, apiKey: clientApiKey } = await request.json();
 
     const useSiteApi = !clientApiKey;
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+
+    // 다중 API 키 지원: GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3...
+    const siteApiKeys = [
+      process.env.GEMINI_API_KEY,
+      process.env.GEMINI_API_KEY_2,
+      process.env.GEMINI_API_KEY_3,
+    ].filter((k): k is string => !!k?.trim());
+
+    const apiKeys = clientApiKey ? [clientApiKey] : siteApiKeys;
+    if (apiKeys.length === 0) {
       return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
     }
 
@@ -74,20 +82,14 @@ ${businessContext}${userContext}
 4. JSON만 출력. 앞뒤 설명 텍스트 금지`;
 
     const model = 'gemini-2.5-flash';
-    const MAX_RETRIES = 3;
     let lastError = '';
 
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // 각 API 키를 한 번씩만 시도 (429 시 다음 키로 전환, 서버에서 재시도 안 함)
+    for (let i = 0; i < apiKeys.length; i++) {
+      const currentKey = apiKeys[i];
       try {
-        // 재시도 시 대기 (3초, 6초)
-        if (attempt > 0) {
-          const waitMs = attempt * 3000;
-          console.warn(`Gemini ${model} retry ${attempt}/${MAX_RETRIES}, waiting ${waitMs}ms`);
-          await new Promise(r => setTimeout(r, waitMs));
-        }
-
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${currentKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -105,9 +107,9 @@ ${businessContext}${userContext}
           }
         );
 
-        // 429 Rate Limit → 재시도
+        // 429 → 다음 API 키 시도
         if (response.status === 429) {
-          console.warn(`Gemini ${model} rate limited (429), attempt ${attempt + 1}/${MAX_RETRIES}`);
+          console.warn(`Gemini key ${i + 1}/${apiKeys.length} rate limited (429)`);
           lastError = 'API 요청 한도 초과';
           continue;
         }
@@ -117,23 +119,21 @@ ${businessContext}${userContext}
         if (data.error) {
           lastError = data.error.message || JSON.stringify(data.error);
           if (lastError.includes('quota') || lastError.includes('rate')) {
-            console.warn(`Gemini ${model} quota error, attempt ${attempt + 1}/${MAX_RETRIES}`);
+            console.warn(`Gemini key ${i + 1} quota error, trying next key`);
             continue;
           }
-          console.error(`Gemini analyze ${model} error:`, lastError);
+          console.error(`Gemini analyze error:`, lastError);
           return NextResponse.json({ error: lastError }, { status: 400 });
         }
 
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (text) {
-          console.log(`Analyze success with ${model} (attempt ${attempt + 1})`);
-
+          console.log(`Analyze success with key ${i + 1}/${apiKeys.length}`);
           try {
             const jsonStr = extractJson(text);
             const analysisJson = JSON.parse(jsonStr);
             return NextResponse.json({ analysis: text, analysisJson });
           } catch {
-            console.warn('JSON parse failed, returning raw text');
             return NextResponse.json({ analysis: text });
           }
         }
@@ -141,16 +141,16 @@ ${businessContext}${userContext}
         lastError = '빈 응답';
         break;
       } catch (fetchError) {
-        console.error(`Gemini analyze ${model} fetch error:`, fetchError);
+        console.error(`Gemini analyze fetch error (key ${i + 1}):`, fetchError);
         lastError = fetchError instanceof Error ? fetchError.message : 'Fetch error';
-        break;
+        continue;
       }
     }
 
-    // 모든 재시도 실패
+    // 모든 키 실패 → 429 반환 (클라이언트가 긴 딜레이로 재시도)
     return NextResponse.json(
-      { error: lastError || '분석 실패', retryable: lastError.includes('한도') },
-      { status: lastError.includes('한도') ? 429 : 400 }
+      { error: lastError || '분석 실패', retryable: true },
+      { status: 429 }
     );
 
   } catch (error: unknown) {
