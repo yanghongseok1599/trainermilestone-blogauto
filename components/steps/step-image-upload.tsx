@@ -70,6 +70,11 @@ export function StepImageUpload() {
       return;
     }
 
+    if (!imageAnalysisContext?.trim()) {
+      toast.error('분석 참고 내용을 입력해주세요. 업체명, 사진 배경 등을 입력하면 정확한 분석이 가능합니다.');
+      return;
+    }
+
     setIsAnalyzing(true);
     toast.info('이미지 분석을 시작합니다...');
 
@@ -287,20 +292,25 @@ export function StepImageUpload() {
         {/* Image Previews */}
         {images.length > 0 && (
           <div className="space-y-4">
-            {/* 분석 참고 내용 입력 */}
+            {/* 분석 참고 내용 입력 (필수) */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#6b7280] flex items-center gap-2">
-                <Info className="w-4 h-4" />
-                분석 참고 내용 (선택사항)
+              <label className="text-sm font-medium text-[#111111] flex items-center gap-2">
+                <Info className="w-4 h-4 text-[#f72c5b]" />
+                분석 참고 내용 <span className="text-[#f72c5b]">*</span>
               </label>
               <Textarea
                 value={imageAnalysisContext}
                 onChange={(e) => setImageAnalysisContext(e.target.value)}
                 placeholder="예: 바디플로우짐은 강남역 3번 출구에 위치한 프리미엄 피트니스 센터입니다. 국가공인 자격증을 보유한 전문 트레이너들이 1:1 맞춤 지도를 제공합니다."
-                className="min-h-[80px] bg-white border-[#eeeeee] focus:border-[#f72c5b] text-sm resize-none"
+                className={cn(
+                  "min-h-[80px] bg-white text-sm resize-none",
+                  !imageAnalysisContext?.trim()
+                    ? "border-[#f72c5b]/50 focus:border-[#f72c5b]"
+                    : "border-[#eeeeee] focus:border-[#f72c5b]"
+                )}
               />
               <p className="text-xs text-[#9ca3af]">
-                업체명, 트레이너 정보, 사진 촬영 배경 등을 입력하면 더 정확한 분석이 가능합니다
+                업체명, 트레이너 정보, 사진 촬영 배경 등을 입력해야 정확한 분석이 가능합니다
               </p>
             </div>
 
