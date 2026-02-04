@@ -108,7 +108,7 @@ function PromptCollectionContent() {
             <ArrowLeft className="w-4 h-4" />
             홈으로
           </Link>
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#8b5cf6] to-[#a78bfa] flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#f72c5b] to-[#a78bfa] flex items-center justify-center mx-auto mb-4">
             <Sparkles className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-4xl font-bold text-[#111111] mb-4">
@@ -128,7 +128,7 @@ function PromptCollectionContent() {
               placeholder="프롬프트 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 bg-white border-[#eeeeee] focus:border-[#8b5cf6]"
+              className="pl-10 h-12 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
             />
           </div>
 
@@ -140,8 +140,8 @@ function PromptCollectionContent() {
                 size="sm"
                 onClick={() => setSelectedCategory(category)}
                 className={selectedCategory === category
-                  ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'
-                  : 'border-[#eeeeee] text-[#6b7280] hover:text-[#8b5cf6] hover:border-[#8b5cf6]'
+                  ? 'bg-[#f72c5b] hover:bg-[#7c3aed] text-white'
+                  : 'border-[#eeeeee] text-[#6b7280] hover:text-[#f72c5b] hover:border-[#f72c5b]'
                 }
               >
                 {category}
@@ -156,14 +156,14 @@ function PromptCollectionContent() {
             <Card key={item.id} className="overflow-hidden border border-[#eeeeee] hover:shadow-lg transition-shadow group">
               <div className="relative aspect-square bg-[#f5f5f5]">
                 {/* 실제 이미지가 없으면 플레이스홀더 표시 */}
-                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#8b5cf6]/10 to-[#a78bfa]/10">
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#f72c5b]/10 to-[#a78bfa]/10">
                   <div className="text-center p-4">
-                    <Sparkles className="w-12 h-12 text-[#8b5cf6]/30 mx-auto mb-2" />
+                    <Sparkles className="w-12 h-12 text-[#f72c5b]/30 mx-auto mb-2" />
                     <p className="text-xs text-[#9ca3af]">{item.category}</p>
                   </div>
                 </div>
                 {/* 카테고리 뱃지 */}
-                <div className="absolute top-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-[#8b5cf6]">
+                <div className="absolute top-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-[#f72c5b]">
                   {item.category}
                 </div>
               </div>
@@ -175,7 +175,7 @@ function PromptCollectionContent() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 border-[#8b5cf6] text-[#8b5cf6] hover:bg-[#8b5cf6] hover:text-white"
+                    className="flex-1 border-[#f72c5b] text-[#f72c5b] hover:bg-[#f72c5b] hover:text-white"
                     onClick={() => handleCopyPrompt(item.id, item.prompt)}
                   >
                     {copiedId === item.id ? (
@@ -212,9 +212,9 @@ function PromptCollectionContent() {
         )}
 
         {/* Info Section */}
-        <div className="mt-12 p-6 bg-[#8b5cf6]/5 rounded-xl border border-[#8b5cf6]/20">
+        <div className="mt-12 p-6 bg-[#f72c5b]/5 rounded-xl border border-[#f72c5b]/20">
           <h3 className="font-semibold text-[#111111] mb-2 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#8b5cf6]" />
+            <Sparkles className="w-5 h-5 text-[#f72c5b]" />
             프롬프트 활용 팁
           </h3>
           <ul className="text-sm text-[#6b7280] space-y-1">

@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
+// useEffect still needed for auth redirect
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useAppStore } from '@/lib/store';
 import { STEPS } from '@/lib/constants';
 import { StepIndicator } from '@/components/step-indicator';
-import { StepApiSetup } from '@/components/steps/step-api-setup';
 import { StepBusinessInfo } from '@/components/steps/step-business-info';
 import { StepImageUpload } from '@/components/steps/step-image-upload';
 import { StepGenerate } from '@/components/steps/step-generate';
@@ -15,12 +15,7 @@ import { StepResult } from '@/components/steps/step-result';
 export default function DashboardPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { currentStep, setCurrentStep, hydrate } = useAppStore();
-
-  // 클라이언트에서 저장된 API 키 로드
-  useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+  const { currentStep, setCurrentStep } = useAppStore();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -31,17 +26,15 @@ export default function DashboardPage() {
   const renderStep = () => {
     switch (currentStep) {
       case 0:
-        return <StepApiSetup />;
-      case 1:
         return <StepBusinessInfo />;
-      case 2:
+      case 1:
         return <StepImageUpload />;
-      case 3:
+      case 2:
         return <StepGenerate />;
-      case 4:
+      case 3:
         return <StepResult />;
       default:
-        return <StepApiSetup />;
+        return <StepBusinessInfo />;
     }
   };
 

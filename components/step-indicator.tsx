@@ -17,8 +17,7 @@ interface StepIndicatorProps {
 
 export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicatorProps) {
   const handleStepClick = (index: number) => {
-    // 완료된 단계나 현재 단계만 클릭 가능
-    if (index <= currentStep && onStepClick) {
+    if (onStepClick) {
       onStepClick(index);
     }
   };
@@ -26,7 +25,7 @@ export function StepIndicator({ steps, currentStep, onStepClick }: StepIndicator
   return (
     <div className="flex items-center justify-center gap-0 flex-wrap">
       {steps.map((step, index) => {
-        const isClickable = index <= currentStep && onStepClick;
+        const isClickable = !!onStepClick;
 
         return (
           <div key={step.id} className="flex items-center">

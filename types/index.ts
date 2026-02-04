@@ -4,7 +4,9 @@ export type FitnessCategory =
   | 'PT샵'
   | '요가'
   | '크로스핏'
-  | '복싱';
+  | '복싱'
+  | '바레'
+  | '기타';
 
 export type ApiProvider = 'gemini' | 'openai';
 
@@ -42,6 +44,25 @@ export const SEARCH_INTENT_INFO: Record<SearchIntent, {
   }
 };
 
+// 이미지 분석 JSON 스키마 (구조화된 사실 추출)
+export interface ImageAnalysisResult {
+  placeType: string | null;
+  equipment: { name: string; count: number | null }[];
+  spaceSize: string | null;           // 좁음/보통/넓음
+  people: { exists: boolean; description: string | null };
+  textFound: { raw: string; type: 'price' | 'sign' | 'certificate' | 'other' }[];
+  numbersFound: string[];
+  certificates: { issuer: string; name: string; person: string }[];
+  brandLogo: string[];
+  mood: {
+    lighting: string | null;
+    cleanliness: string | null;
+    impression: string | null;
+  };
+  recommendedSection: string | null;
+  claimSupport: string | null;
+}
+
 export interface ImageData {
   id: string;
   file: File;
@@ -49,6 +70,7 @@ export interface ImageData {
   base64: string;
   mimeType: string;
   analysis?: string;
+  analysisJson?: ImageAnalysisResult;   // 구조화된 분석 결과
 }
 
 export interface Preset {
@@ -76,9 +98,7 @@ export interface AppState {
 
   // API 설정
   apiProvider: ApiProvider;
-  apiKey: string;
   setApiProvider: (provider: ApiProvider) => void;
-  setApiKey: (key: string) => void;
 
   // 업체 정보
   category: FitnessCategory;
@@ -93,7 +113,9 @@ export interface AppState {
   uniquePoint: string;
   attributes: Record<string, string>;
   customAttributes: string[];
+  customCategoryName: string;
   setCategory: (category: FitnessCategory) => void;
+  setCustomCategoryName: (name: string) => void;
   setBusinessInfo: (info: Partial<AppState>) => void;
   setAttribute: (key: string, value: string) => void;
   setAttributes: (attrs: Record<string, string>) => void;
@@ -117,7 +139,7 @@ export interface AppState {
   imageAnalysisContext: string;
   addImage: (image: ImageData) => void;
   removeImage: (id: string) => void;
-  updateImageAnalysis: (id: string, analysis: string) => void;
+  updateImageAnalysis: (id: string, analysis: string, analysisJson?: ImageAnalysisResult) => void;
   setImageAnalysisContext: (context: string) => void;
 
   // 결과
@@ -131,6 +153,10 @@ export interface AppState {
   // 검색 의도
   searchIntent: SearchIntent;
   setSearchIntent: (intent: SearchIntent) => void;
+
+  // 글 유형 (콘텐츠 타입)
+  contentType: 'center_intro' | 'customer_story' | 'exercise_info' | 'medical_info' | 'event_review' | 'staff_intro' | 'promotion';
+  setContentType: (type: AppState['contentType']) => void;
 
   // 페르소나 & 타겟
   writerPersona: string;
@@ -146,9 +172,45 @@ export interface AppState {
   liteMode: boolean;
   setLiteMode: (mode: boolean) => void;
 
+  // PRO 기능: 상위노출 블로그 학습
+  topBlogsLearning: LearningResult | null;
+  isLearningTopBlogs: boolean;
+  setTopBlogsLearning: (result: LearningResult | null) => void;
+  setIsLearningTopBlogs: (isLearning: boolean) => void;
+  clearTopBlogsLearning: () => void;
+
   // 리셋
   reset: () => void;
+}
 
-  // 클라이언트 hydration
-  hydrate: () => void;
+// 상위노출 블로그 학습 결과 타입
+export interface LearningResult {
+  keyword: string;
+  totalBlogs: number;
+  successfulBlogs: number;
+  blogs: LearnedBlog[];
+  analysis: {
+    avgWordCount: number;
+    avgSections: number;
+    avgImages: number;
+    commonStructures: string[];
+    titlePatterns: string[];
+  };
+}
+
+export interface LearnedBlog {
+  title: string;
+  url: string;
+  content: string;
+  structure: {
+    hasIntro: boolean;
+    hasConclusion: boolean;
+    sectionCount: number;
+    imageCount: number;
+    hasFAQ: boolean;
+    hasTable: boolean;
+  };
+  keywords: string[];
+  wordCount: number;
+  bloggername: string;
 }

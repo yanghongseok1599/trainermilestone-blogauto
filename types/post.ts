@@ -41,6 +41,13 @@ export const POST_TYPE_INFO: Record<PostType, {
   },
 };
 
+// 예약 발행 상태
+export type ScheduledPostStatus =
+  | 'pending'      // 발행 대기
+  | 'published'    // 발행 완료
+  | 'failed'       // 발행 실패
+  | 'cancelled';   // 취소됨
+
 // 저장된 글
 export interface SavedPost {
   id: string;
@@ -54,6 +61,10 @@ export interface SavedPost {
   imagePrompts: { korean: string; english: string }[];
   createdAt: Date;
   updatedAt: Date;
+  // 예약 발행 관련 (PRO 플랜 이상)
+  scheduledAt?: Date;           // 예약 발행 시간
+  scheduledStatus?: ScheduledPostStatus;  // 예약 발행 상태
+  publishedAt?: Date;           // 실제 발행 시간
 }
 
 // SEO 스케줄 항목

@@ -254,6 +254,157 @@ export async function incrementUsage(
   return { allowed: true, remaining: limit - currentCount - 1 };
 }
 
+// 토큰 사용량 확인 및 증가 (월간 + 일일 제한 모두 체크)
+export async function checkAndIncrementTokenUsage(
+  userId: string,
+  tokensUsed: number
+): Promise<{
+  allowed: boolean;
+  remaining: number;
+  used: number;
+  limit: number;
+  dailyRemaining: number;
+  dailyUsed: number;
+  dailyLimit: number;
+  reason?: 'monthly' | 'daily';
+}> {
+  if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
+
+  const subscription = await getUserSubscription(userId);
+  if (!subscription) {
+    return { allowed: false, remaining: 0, used: 0, limit: 0, dailyRemaining: 0, dailyUsed: 0, dailyLimit: 0 };
+  }
+
+  const plan = PLANS[subscription.currentPlan];
+  const tokenLimit = plan.tokenLimit;
+  const dailyTokenLimit = plan.dailyTokenLimit;
+  const currentUsage = subscription.tokenUsage || 0;
+
+  // 일일 토큰 사용량 체크 및 리셋
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dailyResetDate = subscription.dailyTokenResetDate ? new Date(subscription.dailyTokenResetDate) : null;
+
+  let dailyUsage = subscription.dailyTokenUsage || 0;
+
+  // 날짜가 바뀌면 일일 사용량 리셋
+  if (!dailyResetDate || dailyResetDate < today) {
+    dailyUsage = 0;
+    await updateUserSubscription(userId, {
+      dailyTokenUsage: 0,
+      dailyTokenResetDate: today,
+    });
+  }
+
+  // 일일 토큰 제한 확인
+  if (dailyUsage + tokensUsed > dailyTokenLimit) {
+    return {
+      allowed: false,
+      remaining: Math.max(0, tokenLimit - currentUsage),
+      used: currentUsage,
+      limit: tokenLimit,
+      dailyRemaining: Math.max(0, dailyTokenLimit - dailyUsage),
+      dailyUsed: dailyUsage,
+      dailyLimit: dailyTokenLimit,
+      reason: 'daily'
+    };
+  }
+
+  // 월간 토큰 제한 확인
+  if (currentUsage + tokensUsed > tokenLimit) {
+    return {
+      allowed: false,
+      remaining: Math.max(0, tokenLimit - currentUsage),
+      used: currentUsage,
+      limit: tokenLimit,
+      dailyRemaining: Math.max(0, dailyTokenLimit - dailyUsage),
+      dailyUsed: dailyUsage,
+      dailyLimit: dailyTokenLimit,
+      reason: 'monthly'
+    };
+  }
+
+  // 토큰 사용량 증가 (월간 + 일일)
+  await updateUserSubscription(userId, {
+    tokenUsage: currentUsage + tokensUsed,
+    dailyTokenUsage: dailyUsage + tokensUsed,
+  });
+
+  return {
+    allowed: true,
+    remaining: tokenLimit - currentUsage - tokensUsed,
+    used: currentUsage + tokensUsed,
+    limit: tokenLimit,
+    dailyRemaining: dailyTokenLimit - dailyUsage - tokensUsed,
+    dailyUsed: dailyUsage + tokensUsed,
+    dailyLimit: dailyTokenLimit
+  };
+}
+
+// 토큰 사용량 조회 (월간 + 일일)
+export async function getTokenUsage(userId: string): Promise<{
+  used: number;
+  remaining: number;
+  limit: number;
+  dailyUsed: number;
+  dailyRemaining: number;
+  dailyLimit: number;
+}> {
+  if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
+
+  const subscription = await getUserSubscription(userId);
+  if (!subscription) {
+    return { used: 0, remaining: 0, limit: 0, dailyUsed: 0, dailyRemaining: 0, dailyLimit: 0 };
+  }
+
+  const plan = PLANS[subscription.currentPlan];
+  const tokenLimit = plan.tokenLimit;
+  const dailyTokenLimit = plan.dailyTokenLimit;
+  const currentUsage = subscription.tokenUsage || 0;
+
+  // 일일 토큰 사용량 체크
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dailyResetDate = subscription.dailyTokenResetDate ? new Date(subscription.dailyTokenResetDate) : null;
+  let dailyUsage = subscription.dailyTokenUsage || 0;
+
+  // 날짜가 바뀌면 일일 사용량은 0으로 표시
+  if (!dailyResetDate || dailyResetDate < today) {
+    dailyUsage = 0;
+  }
+
+  return {
+    used: currentUsage,
+    remaining: Math.max(0, tokenLimit - currentUsage),
+    limit: tokenLimit,
+    dailyUsed: dailyUsage,
+    dailyRemaining: Math.max(0, dailyTokenLimit - dailyUsage),
+    dailyLimit: dailyTokenLimit
+  };
+}
+
+// 예약 발행 권한 확인
+export async function canUseScheduledPost(userId: string): Promise<boolean> {
+  if (!db) return false;
+
+  const subscription = await getUserSubscription(userId);
+  if (!subscription) return false;
+
+  const plan = PLANS[subscription.currentPlan];
+  return plan.scheduledPost;
+}
+
+// RAG 학습 기능 권한 확인
+export async function canUseRagLearning(userId: string): Promise<boolean> {
+  if (!db) return false;
+
+  const subscription = await getUserSubscription(userId);
+  if (!subscription) return false;
+
+  const plan = PLANS[subscription.currentPlan];
+  return plan.ragLearning;
+}
+
 // 사용량 리셋 (월간)
 export async function resetMonthlyUsage(userId: string): Promise<void> {
   if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
@@ -261,6 +412,7 @@ export async function resetMonthlyUsage(userId: string): Promise<void> {
   await updateUserSubscription(userId, {
     blogCount: 0,
     imageAnalysisCount: 0,
+    tokenUsage: 0,
     usageResetDate: getNextMonthDate(),
   });
 }

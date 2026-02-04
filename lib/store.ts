@@ -1,26 +1,9 @@
 import { create } from 'zustand';
-import { AppState, FitnessCategory, ApiProvider, ImageData, SearchIntent } from '@/types';
-
-// localStorage 키
-const API_KEY_STORAGE_KEY = 'blogbooster_api_key';
-const API_PROVIDER_STORAGE_KEY = 'blogbooster_api_provider';
-
-// 저장된 API 키 로드 (클라이언트에서만)
-const loadSavedApiKey = (): string => {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
-};
-
-const loadSavedApiProvider = (): ApiProvider => {
-  if (typeof window === 'undefined') return 'gemini';
-  const saved = localStorage.getItem(API_PROVIDER_STORAGE_KEY);
-  return (saved === 'openai' || saved === 'gemini') ? saved : 'gemini';
-};
+import { AppState, FitnessCategory, ApiProvider, ImageData, ImageAnalysisResult, SearchIntent, LearningResult } from '@/types';
 
 const initialState = {
   currentStep: 0,
   apiProvider: 'gemini' as ApiProvider,
-  apiKey: '',
   category: '헬스장' as FitnessCategory,
   businessName: '',
   mainKeyword: '',
@@ -29,6 +12,7 @@ const initialState = {
   targetAudience: '',
   uniquePoint: '',
   attributes: {} as Record<string, string>,
+  customCategoryName: '',
   customAttributes: [] as string[],
   attributeLabels: {} as Record<string, string>, // 라벨 수정용
   hiddenAttributes: [] as string[], // 삭제(숨김) 처리된 기본 속성
@@ -37,10 +21,14 @@ const initialState = {
   generatedContent: '',
   extractedImagePrompts: [] as { korean: string; english: string }[],
   searchIntent: 'location' as SearchIntent,
+  contentType: 'center_intro' as AppState['contentType'],
   writerPersona: '',
   targetReader: '',
   customTitle: '',
   liteMode: true, // 기본값: 라이트 모드 (무료 API용)
+  // PRO 기능: 상위노출 블로그 학습
+  topBlogsLearning: null as LearningResult | null,
+  isLearningTopBlogs: false,
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -48,30 +36,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setCurrentStep: (step) => set({ currentStep: step }),
 
-  // 클라이언트에서 저장된 값 로드
-  hydrate: () => {
-    if (typeof window !== 'undefined') {
-      const savedApiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || '';
-      const savedProvider = localStorage.getItem(API_PROVIDER_STORAGE_KEY);
-      const apiProvider = (savedProvider === 'openai' || savedProvider === 'gemini') ? savedProvider : 'gemini';
-      set({ apiKey: savedApiKey, apiProvider });
-    }
-  },
-  setApiProvider: (provider) => {
-    // localStorage에 저장
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(API_PROVIDER_STORAGE_KEY, provider);
-    }
-    set({ apiProvider: provider });
-  },
-  setApiKey: (key) => {
-    // localStorage에 저장
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(API_KEY_STORAGE_KEY, key);
-    }
-    set({ apiKey: key });
-  },
-  setCategory: (category) => set({ category, attributes: {} }),
+  setApiProvider: (provider) => set({ apiProvider: provider }),
+  setCategory: (category) => set({ category, attributes: {}, ...(category !== '기타' && { customCategoryName: '' }) }),
+  setCustomCategoryName: (name) => set({ customCategoryName: name }),
 
   setBusinessInfo: (info) => set((state) => ({ ...state, ...info })),
   setMainKeyword: (keyword) => set({ mainKeyword: keyword }),
@@ -131,9 +98,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   removeImage: (id) => set((state) => ({
     images: state.images.filter((img) => img.id !== id)
   })),
-  updateImageAnalysis: (id, analysis) => set((state) => ({
+  updateImageAnalysis: (id, analysis, analysisJson?) => set((state) => ({
     images: state.images.map((img) =>
-      img.id === id ? { ...img, analysis } : img
+      img.id === id ? { ...img, analysis, ...(analysisJson && { analysisJson }) } : img
     )
   })),
   setImageAnalysisContext: (context) => set({ imageAnalysisContext: context }),
@@ -143,6 +110,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setExtractedImagePrompts: (prompts) => set({ extractedImagePrompts: prompts }),
 
   setSearchIntent: (intent) => set({ searchIntent: intent }),
+  setContentType: (type) => set({ contentType: type }),
 
   setWriterPersona: (persona) => set({ writerPersona: persona }),
   setTargetReader: (target) => set({ targetReader: target }),
@@ -150,6 +118,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCustomTitle: (title) => set({ customTitle: title }),
 
   setLiteMode: (mode) => set({ liteMode: mode }),
+
+  // PRO 기능: 상위노출 블로그 학습
+  setTopBlogsLearning: (result) => set({ topBlogsLearning: result }),
+  setIsLearningTopBlogs: (isLearning) => set({ isLearningTopBlogs: isLearning }),
+  clearTopBlogsLearning: () => set({ topBlogsLearning: null, isLearningTopBlogs: false }),
 
   reset: () => set(initialState),
 }));

@@ -12,14 +12,13 @@ import { Loader2, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signInWithGoogle, signInWithKakao, signUpWithEmail } = useAuth();
+  const { signInWithGoogle, signUpWithEmail } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isKakaoLoading, setIsKakaoLoading] = useState(false);
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,17 +70,6 @@ export default function SignupPage() {
     setIsGoogleLoading(false);
   };
 
-  const handleKakaoSignup = () => {
-    setIsKakaoLoading(true);
-    try {
-      signInWithKakao();
-    } catch (error) {
-      console.error('Kakao signup error:', error);
-      toast.error('카카오 회원가입에 실패했습니다');
-      setIsKakaoLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-white to-[#f5f5f5]">
       <Card className="w-full max-w-md border border-[#eeeeee] shadow-xl bg-white">
@@ -104,26 +92,6 @@ export default function SignupPage() {
         <CardContent className="space-y-6 pt-4">
           {/* Social Login Buttons */}
           <div className="space-y-3">
-            {/* Kakao Signup */}
-            <Button
-              variant="outline"
-              className="w-full h-12 bg-[#FEE500] hover:bg-[#FDD835] border-[#FEE500] text-[#3C1E1E] font-medium"
-              onClick={handleKakaoSignup}
-              disabled={isKakaoLoading}
-            >
-              {isKakaoLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : (
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path
-                    fill="#3C1E1E"
-                    d="M12 3C6.477 3 2 6.463 2 10.691c0 2.648 1.758 4.978 4.399 6.333-.136.48-.878 3.095-.907 3.314 0 0-.018.144.076.2.094.056.205.013.205.013.27-.038 3.13-2.053 3.624-2.399.851.119 1.737.181 2.603.181 5.523 0 10-3.463 10-7.691S17.523 3 12 3"
-                  />
-                </svg>
-              )}
-              카카오로 시작하기
-            </Button>
-
             {/* Google Signup */}
             <Button
               variant="outline"

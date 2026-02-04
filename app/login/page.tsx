@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -9,45 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, Lock, ArrowLeft, User } from 'lucide-react';
-import { signInWithCustomToken } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 
 function LoginContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { signInWithGoogle, signInWithKakao, signInWithEmail, signInAsAdmin } = useAuth();
+  const { signInWithGoogle, signInWithEmail, signInAsAdmin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isKakaoLoading, setIsKakaoLoading] = useState(false);
-
-  // 카카오 로그인 콜백 처리
-  useEffect(() => {
-    const kakaoToken = searchParams.get('kakao_token');
-    const error = searchParams.get('error');
-
-    if (error) {
-      toast.error('카카오 로그인에 실패했습니다');
-      return;
-    }
-
-    if (kakaoToken && auth) {
-      setIsKakaoLoading(true);
-      signInWithCustomToken(auth, kakaoToken)
-        .then(() => {
-          toast.success('카카오 로그인 성공!');
-          router.push('/dashboard');
-        })
-        .catch((error) => {
-          console.error('Custom token sign in error:', error);
-          toast.error('로그인 처리 중 오류가 발생했습니다');
-        })
-        .finally(() => {
-          setIsKakaoLoading(false);
-        });
-    }
-  }, [searchParams, router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,17 +53,6 @@ function LoginContent() {
       }
     }
     setIsLoading(false);
-  };
-
-  const handleKakaoLogin = () => {
-    setIsKakaoLoading(true);
-    try {
-      signInWithKakao();
-    } catch (error) {
-      console.error('Kakao login error:', error);
-      toast.error('카카오 로그인에 실패했습니다');
-      setIsKakaoLoading(false);
-    }
   };
 
   const handleGoogleLogin = async () => {
@@ -148,26 +106,6 @@ function LoginContent() {
         <CardContent className="space-y-6 pt-4">
           {/* Social Login Buttons */}
           <div className="space-y-3">
-            {/* Kakao Login */}
-            <Button
-              variant="outline"
-              className="w-full h-12 bg-[#FEE500] hover:bg-[#FDD835] border-[#FEE500] text-[#3C1E1E] font-medium"
-              onClick={handleKakaoLogin}
-              disabled={isKakaoLoading}
-            >
-              {isKakaoLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : (
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path
-                    fill="#3C1E1E"
-                    d="M12 3C6.477 3 2 6.463 2 10.691c0 2.648 1.758 4.978 4.399 6.333-.136.48-.878 3.095-.907 3.314 0 0-.018.144.076.2.094.056.205.013.205.013.27-.038 3.13-2.053 3.624-2.399.851.119 1.737.181 2.603.181 5.523 0 10-3.463 10-7.691S17.523 3 12 3"
-                  />
-                </svg>
-              )}
-              카카오로 계속하기
-            </Button>
-
             {/* Google Login */}
             <Button
               variant="outline"

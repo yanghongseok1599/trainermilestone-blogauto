@@ -1973,7 +1973,7 @@ function BeforeAfterContent() {
       ctx.rotate(rotation);
 
       // 이미지 테두리 (파란색 실선)
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = '#111111';
       ctx.lineWidth = 2;
       ctx.setLineDash([]);
       ctx.strokeRect(-bounds.width / 2, -bounds.height / 2, bounds.width, bounds.height);
@@ -1995,7 +1995,7 @@ function BeforeAfterContent() {
       // 핸들 그리기
       handles.forEach(handle => {
         const size = handle.isCorner ? handleSize : edgeHandleSize;
-        ctx.fillStyle = '#3b82f6';
+        ctx.fillStyle = '#111111';
         ctx.fillRect(handle.lx - size / 2, handle.ly - size / 2, size, size);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(handle.lx - size / 2 + 2, handle.ly - size / 2 + 2, size - 4, size - 4);
@@ -2005,7 +2005,7 @@ function BeforeAfterContent() {
       const rotateHandleY = -bounds.height / 2 - rotateHandleDistance;
 
       // 회전 핸들 연결선
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = '#111111';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, -bounds.height / 2);
@@ -2013,7 +2013,7 @@ function BeforeAfterContent() {
       ctx.stroke();
 
       // 회전 핸들 원
-      ctx.fillStyle = '#3b82f6';
+      ctx.fillStyle = '#111111';
       ctx.beginPath();
       ctx.arc(0, rotateHandleY, 8, 0, Math.PI * 2);
       ctx.fill();
@@ -2023,7 +2023,7 @@ function BeforeAfterContent() {
       ctx.fill();
 
       // 회전 아이콘 (화살표)
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = '#111111';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(0, rotateHandleY, 4, -Math.PI * 0.7, Math.PI * 0.2);
@@ -2146,7 +2146,7 @@ function BeforeAfterContent() {
 
         // 드래그 중일 때 하이라이트
         if (dragTarget === 'slider-divider') {
-          ctx.strokeStyle = '#3b82f6';
+          ctx.strokeStyle = '#111111';
           ctx.lineWidth = 3;
           ctx.stroke();
         }
@@ -2262,7 +2262,7 @@ function BeforeAfterContent() {
         ctx.fill();
 
         if (dragTarget === type) {
-          ctx.strokeStyle = '#3b82f6';
+          ctx.strokeStyle = '#111111';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
@@ -2294,7 +2294,7 @@ function BeforeAfterContent() {
         ctx.fill();
 
         if (dragTarget === 'custom-label') {
-          ctx.strokeStyle = '#3b82f6';
+          ctx.strokeStyle = '#111111';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
@@ -2331,7 +2331,7 @@ function BeforeAfterContent() {
       ctx.globalAlpha = 1;
 
       if (dragTarget === 'watermark') {
-        ctx.strokeStyle = '#3b82f6';
+        ctx.strokeStyle = '#111111';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(wmX, wmY, wmWidth, wmHeight);
@@ -2343,7 +2343,7 @@ function BeforeAfterContent() {
 
     // 드래그 중인 이미지 영역 하이라이트 (frameX, frameY 오프셋 적용)
     if (dragTarget === 'before-image' || dragTarget === 'after-image') {
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = '#111111';
       ctx.lineWidth = 4;
       ctx.setLineDash([10, 10]);
 
@@ -2505,7 +2505,7 @@ function BeforeAfterContent() {
             홈으로
           </Link>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#60a5fa] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#111111] to-[#60a5fa] flex items-center justify-center">
               <ArrowLeftRight className="w-4 h-4 text-white" />
             </div>
             <h1 className="text-xl font-bold text-[#111111]">
@@ -2547,7 +2547,7 @@ function BeforeAfterContent() {
                           size="sm"
                           onClick={() => setLayout(option.type)}
                           className={`h-6 w-6 p-0 ${layout === option.type
-                            ? 'bg-[#3b82f6] hover:bg-[#2563eb] text-white'
+                            ? 'bg-[#111111] hover:bg-[#2563eb] text-white'
                             : 'border-[#eeeeee]'}`}
                         >
                           <option.icon className="w-3 h-3" />
@@ -2580,7 +2580,7 @@ function BeforeAfterContent() {
                           setOutputSize({ width: customWidth, height: customHeight, label: '커스텀' });
                         }}
                         className={`h-8 text-sm px-1.5 ${isCustomSize
-                          ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'
+                          ? 'bg-[#f72c5b] hover:bg-[#7c3aed] text-white'
                           : 'border-[#eeeeee]'}`}
                       >
                         커스텀
@@ -2604,7 +2604,7 @@ function BeforeAfterContent() {
                   <div className={`flex items-center gap-1 text-xs p-1.5 rounded ${
                     isEraserMode && (beforeMaskData || afterMaskData)
                       ? 'text-orange-500 bg-orange-500/10'
-                      : 'text-[#3b82f6] bg-[#3b82f6]/10'
+                      : 'text-[#111111] bg-[#111111]/10'
                   }`}>
                     {isEraserMode && (beforeMaskData || afterMaskData) ? (
                       <>
@@ -2632,9 +2632,9 @@ function BeforeAfterContent() {
                     isEraserMode && (beforeMaskData || afterMaskData)
                       ? 'cursor-crosshair hover:ring-2 hover:ring-orange-500/50'
                       : (beforeImage || afterImage)
-                        ? 'cursor-move hover:ring-2 hover:ring-[#3b82f6]/50'
+                        ? 'cursor-move hover:ring-2 hover:ring-[#111111]/50'
                         : ''
-                  } ${isDragOver ? 'ring-4 ring-[#3b82f6] ring-inset' : ''}`}
+                  } ${isDragOver ? 'ring-4 ring-[#111111] ring-inset' : ''}`}
                   onMouseDown={handleMouseDown}
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
@@ -2659,7 +2659,7 @@ function BeforeAfterContent() {
                         <div className={`flex items-center justify-center ${
                           layout === 'horizontal' || layout === 'slider' ? 'w-1/2 h-full' :
                           layout === 'vertical' ? 'w-full h-1/2' : 'w-1/2 h-full'
-                        } ${dropTarget === 'before' ? 'bg-[#3b82f6]/30' : 'bg-black/20'}`}>
+                        } ${dropTarget === 'before' ? 'bg-[#111111]/30' : 'bg-black/20'}`}>
                           <div className="text-center text-white">
                             <Upload className="w-8 h-8 mx-auto mb-2" />
                             <p className="text-sm font-medium">Before</p>
@@ -2668,7 +2668,7 @@ function BeforeAfterContent() {
                         <div className={`flex items-center justify-center ${
                           layout === 'horizontal' || layout === 'slider' ? 'w-1/2 h-full' :
                           layout === 'vertical' ? 'w-full h-1/2' : 'w-1/2 h-full'
-                        } ${dropTarget === 'after' ? 'bg-[#10b981]/30' : 'bg-black/20'}`}>
+                        } ${dropTarget === 'after' ? 'bg-[#03C75A]/30' : 'bg-black/20'}`}>
                           <div className="text-center text-white">
                             <Upload className="w-8 h-8 mx-auto mb-2" />
                             <p className="text-sm font-medium">After</p>
@@ -2689,10 +2689,10 @@ function BeforeAfterContent() {
                           onClick={() => beforeInputRef.current?.click()}
                         >
                           <div className="p-4 rounded-lg border-2 border-dashed border-[#666] hover:border-[#999] transition-colors">
-                            <div className="w-8 h-8 rounded-full bg-[#3b82f6]/20 flex items-center justify-center mb-2 mx-auto">
-                              <Upload className="w-4 h-4 text-[#3b82f6]" />
+                            <div className="w-8 h-8 rounded-full bg-[#111111]/20 flex items-center justify-center mb-2 mx-auto">
+                              <Upload className="w-4 h-4 text-[#111111]" />
                             </div>
-                            <p className="text-xs font-medium text-[#3b82f6] text-center">Before</p>
+                            <p className="text-xs font-medium text-[#111111] text-center">Before</p>
                             <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                           </div>
                         </div>
@@ -2701,10 +2701,10 @@ function BeforeAfterContent() {
                           onClick={() => afterInputRef.current?.click()}
                         >
                           <div className="p-4 rounded-lg border-2 border-dashed border-[#666] hover:border-[#999] transition-colors">
-                            <div className="w-8 h-8 rounded-full bg-[#10b981]/20 flex items-center justify-center mb-2 mx-auto">
-                              <Upload className="w-4 h-4 text-[#10b981]" />
+                            <div className="w-8 h-8 rounded-full bg-[#03C75A]/20 flex items-center justify-center mb-2 mx-auto">
+                              <Upload className="w-4 h-4 text-[#03C75A]" />
                             </div>
-                            <p className="text-xs font-medium text-[#10b981] text-center">After</p>
+                            <p className="text-xs font-medium text-[#03C75A] text-center">After</p>
                             <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                           </div>
                         </div>
@@ -2724,11 +2724,11 @@ function BeforeAfterContent() {
                       }}
                       onClick={() => afterInputRef.current?.click()}
                     >
-                      <div className="p-4 rounded-lg border-2 border-dashed border-[#666] hover:border-[#10b981] transition-colors bg-black/30">
-                        <div className="w-8 h-8 rounded-full bg-[#10b981]/20 flex items-center justify-center mb-2 mx-auto">
-                          <Upload className="w-4 h-4 text-[#10b981]" />
+                      <div className="p-4 rounded-lg border-2 border-dashed border-[#666] hover:border-[#03C75A] transition-colors bg-black/30">
+                        <div className="w-8 h-8 rounded-full bg-[#03C75A]/20 flex items-center justify-center mb-2 mx-auto">
+                          <Upload className="w-4 h-4 text-[#03C75A]" />
                         </div>
-                        <p className="text-xs font-medium text-[#10b981] text-center">After</p>
+                        <p className="text-xs font-medium text-[#03C75A] text-center">After</p>
                         <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                       </div>
                     </div>
@@ -2746,11 +2746,11 @@ function BeforeAfterContent() {
                       }}
                       onClick={() => beforeInputRef.current?.click()}
                     >
-                      <div className="p-4 rounded-lg border-2 border-dashed border-[#666] hover:border-[#3b82f6] transition-colors bg-black/30">
-                        <div className="w-8 h-8 rounded-full bg-[#3b82f6]/20 flex items-center justify-center mb-2 mx-auto">
-                          <Upload className="w-4 h-4 text-[#3b82f6]" />
+                      <div className="p-4 rounded-lg border-2 border-dashed border-[#666] hover:border-[#111111] transition-colors bg-black/30">
+                        <div className="w-8 h-8 rounded-full bg-[#111111]/20 flex items-center justify-center mb-2 mx-auto">
+                          <Upload className="w-4 h-4 text-[#111111]" />
                         </div>
-                        <p className="text-xs font-medium text-[#3b82f6] text-center">Before</p>
+                        <p className="text-xs font-medium text-[#111111] text-center">Before</p>
                         <p className="text-xs text-[#9ca3af] mt-0.5 text-center">클릭하여 업로드</p>
                       </div>
                     </div>
@@ -2861,7 +2861,7 @@ function BeforeAfterContent() {
                       size="sm"
                       onClick={() => setLayout(option.type)}
                       className={`h-5 px-1.5 text-xs ${layout === option.type
-                        ? 'bg-[#3b82f6] hover:bg-[#2563eb] text-white'
+                        ? 'bg-[#111111] hover:bg-[#2563eb] text-white'
                         : 'border-[#eeeeee]'}`}
                     >
                       <option.icon className="w-2.5 h-2.5 mr-0.5" />
@@ -2910,7 +2910,7 @@ function BeforeAfterContent() {
                         setOutputSize({ width: customWidth, height: customHeight, label: '커스텀' });
                       }}
                       className={`h-5 px-1 text-xs ${isCustomSize
-                        ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'
+                        ? 'bg-[#f72c5b] hover:bg-[#7c3aed] text-white'
                         : 'border-[#eeeeee]'}`}
                     >
                       커스텀
@@ -3045,7 +3045,7 @@ function BeforeAfterContent() {
                     <div className="space-y-0.5">
                       <Label className="text-xs">색상</Label>
                       <div className="flex gap-0.5">
-                        {['#ffffff', '#000000', '#f72c5b', '#3b82f6', '#10b981'].map((color) => (
+                        {['#ffffff', '#000000', '#f72c5b', '#111111', '#03C75A'].map((color) => (
                           <button
                             key={color}
                             className={`w-5 h-5 rounded-full border-2 transition-all ${
@@ -3339,7 +3339,7 @@ function BeforeAfterContent() {
                 {watermark.enabled && (
                   <>
                     <div
-                      className="h-10 rounded border-2 border-dashed border-[#e5e5e5] flex items-center justify-center cursor-pointer hover:border-[#6366f1] transition-colors"
+                      className="h-10 rounded border-2 border-dashed border-[#e5e5e5] flex items-center justify-center cursor-pointer hover:border-[#111111] transition-colors"
                       onClick={() => watermarkInputRef.current?.click()}
                     >
                       {watermark.image ? (

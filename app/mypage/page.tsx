@@ -36,6 +36,8 @@ import {
   Key,
   LogOut,
   X,
+  Zap,
+  Crown,
 } from 'lucide-react';
 
 // 글 유형별 아이콘
@@ -312,8 +314,8 @@ export default function MyPage() {
             <Card className="border-[#eeeeee]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[#10b981]/10">
-                    <TrendingUp className="w-5 h-5 text-[#10b981]" />
+                  <div className="p-2 rounded-lg bg-[#03C75A]/10">
+                    <TrendingUp className="w-5 h-5 text-[#03C75A]" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-[#111111]">{stats.thisMonthPosts}</p>
@@ -326,8 +328,8 @@ export default function MyPage() {
             <Card className="border-[#eeeeee]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[#f7a600]/10">
-                    <Bell className="w-5 h-5 text-[#f7a600]" />
+                  <div className="p-2 rounded-lg bg-[#f72c5b]/10">
+                    <Bell className="w-5 h-5 text-[#f72c5b]" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-[#111111]">
@@ -342,8 +344,8 @@ export default function MyPage() {
             <Card className="border-[#eeeeee]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-[#6366f1]/10">
-                    <Calendar className="w-5 h-5 text-[#6366f1]" />
+                  <div className="p-2 rounded-lg bg-[#111111]/10">
+                    <Calendar className="w-5 h-5 text-[#111111]" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-[#111111]">
@@ -357,12 +359,35 @@ export default function MyPage() {
           </div>
         )}
 
+        {/* 업그레이드 배너 */}
+        <Card className="mb-6 border-[#f72c5b]/20 bg-gradient-to-r from-[#f72c5b]/5 to-[#111111]/5 overflow-hidden">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-[#f72c5b]/10">
+                  <Crown className="w-6 h-6 text-[#f72c5b]" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[#111111] text-lg">PRO로 업그레이드</h3>
+                  <p className="text-sm text-[#6b7280]">더 강력한 AI 기능과 무제한 생성을 경험하세요</p>
+                </div>
+              </div>
+              <Link href="/pricing">
+                <Button className="bg-[#f72c5b] hover:bg-[#d91a4a] text-white px-6 h-11 font-medium shadow-lg shadow-[#f72c5b]/20">
+                  <Zap className="w-4 h-4 mr-2" />
+                  요금표 보기
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* 팀원이 속한 팀 정보 표시 */}
         {teamMembership && (
           <Card className="border-[#eeeeee] mb-6">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Key className="w-5 h-5 text-[#10b981]" />
+                <Key className="w-5 h-5 text-[#03C75A]" />
                 소속 팀 정보
               </CardTitle>
               <CardDescription>
@@ -373,8 +398,8 @@ export default function MyPage() {
               <div className="p-4 rounded-lg border border-green-200 bg-green-50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#10b981]/20 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-[#10b981]" />
+                    <div className="w-10 h-10 rounded-full bg-[#03C75A]/20 flex items-center justify-center">
+                      <Users className="w-5 h-5 text-[#03C75A]" />
                     </div>
                     <div>
                       <p className="font-medium text-[#111111]">
@@ -413,7 +438,7 @@ export default function MyPage() {
           <Card className="lg:col-span-1 border-[#eeeeee]">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Bell className="w-5 h-5 text-[#f7a600]" />
+                <Bell className="w-5 h-5 text-[#f72c5b]" />
                 SEO 발행 알림
               </CardTitle>
             </CardHeader>
@@ -578,7 +603,7 @@ export default function MyPage() {
         <Card className="mt-6 border-[#eeeeee]">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#6366f1]" />
+              <Users className="w-5 h-5 text-[#111111]" />
               API 공유 팀 관리
             </CardTitle>
             <CardDescription>
@@ -602,7 +627,7 @@ export default function MyPage() {
               <Button
                 onClick={handleAddMember}
                 disabled={isAddingMember || !newMemberEmail.trim()}
-                className="bg-[#6366f1] hover:bg-[#5558e3]"
+                className="bg-[#111111] hover:bg-[#333333]"
               >
                 {isAddingMember ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

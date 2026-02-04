@@ -1,802 +1,953 @@
-import { AppState, SEARCH_INTENT_INFO, SearchIntent } from '@/types';
+/**
+ * FBAS 2026 프롬프트 생성기 v2 (안정화 버전)
+ *
+ * 주요 개선사항:
+ * 1. 프롬프트 내부 이모지/마크다운 완전 제거
+ * 2. 사실성 가드레일 최상단 배치
+ * 3. 비율 강제 → 필수 요소 개수로 변경
+ * 4. 고정 수치 예시 → 자리표시자 템플릿으로 교체
+ * 5. 요약 정보 조건부 출력
+ * 6. 첫 문단 공식 유형별 고정
+ * 7. 의료 정보 면책 규칙 추가
+ * 8. facts 영역으로 사실 데이터 분리
+ */
 
-// 글 스타일 유형 (랜덤 선택용)
-type WritingStyle = 'storytelling' | 'informative' | 'comparison' | 'review' | 'guide';
+import { AppState, SearchIntent, LearningResult, ImageAnalysisResult } from '@/types';
 
-// 검색 의도별 글 스타일 가중치
-const INTENT_STYLE_WEIGHTS: Record<SearchIntent, Record<WritingStyle, number>> = {
-  information: { storytelling: 1, informative: 4, comparison: 2, review: 1, guide: 3 },
-  transaction: { storytelling: 2, informative: 2, comparison: 4, review: 3, guide: 2 },
-  navigation: { storytelling: 3, informative: 2, comparison: 1, review: 2, guide: 4 },
-  location: { storytelling: 3, informative: 2, comparison: 3, review: 4, guide: 2 },
-};
+// ============================================================
+// 타입 정의
+// ============================================================
 
-// 가중치 기반 스타일 선택
-function selectWeightedStyle(intent: SearchIntent): WritingStyle {
-  const weights = INTENT_STYLE_WEIGHTS[intent];
-  const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
-  let random = Math.random() * totalWeight;
+export type ContentType =
+  | 'center_intro'      // 센터 소개형
+  | 'customer_story'    // 고객 경험 서사형
+  | 'exercise_info'     // 운동 정보형
+  | 'medical_info'      // 전문 정보형
+  | 'event_review'      // 행사/프로젝트형
+  | 'staff_intro'       // 트레이너 소개형
+  | 'promotion';        // 프로모션형
 
-  for (const [style, weight] of Object.entries(weights)) {
-    random -= weight;
-    if (random <= 0) return style as WritingStyle;
-  }
-  return 'informative';
+export type WriterPerspective =
+  | 'owner'      // 대표자
+  | 'manager'    // 센터장
+  | 'trainer'    // 트레이너
+  | 'fc';        // FC
+
+// 사실 데이터 (이 영역에 있는 값만 사실로 작성)
+export interface Facts {
+  address?: string;           // 주소
+  hours?: string;             // 영업시간
+  parking?: string;           // 주차 정보
+  priceTable?: string;        // 가격표
+  areaPyeong?: string;        // 평수
+  machinesCount?: string;     // 기구 수
+  trainerCerts?: string;      // 트레이너 자격증
+  programList?: string;       // 프로그램 목록
+  memberBefore?: string;      // 회원 전 상태 (수치)
+  memberAfter?: string;       // 회원 후 상태 (수치)
+  eventPeriod?: string;       // 이벤트 기간
+  eventBenefit?: string;      // 이벤트 혜택
 }
 
-// 스타일별 작성 지침 (모두 센터 대표자/관계자 시점)
-const STYLE_GUIDELINES: Record<WritingStyle, string> = {
-  storytelling: `
-### 글쓰기 스타일: 스토리텔링형 (대표자 시점)
-- 센터 대표자/관계자가 직접 소개하는 형식
-- 센터를 만들게 된 계기, 운영 철학, 회원들의 변화 등을 이야기
-- "저희 센터는~", "저희가 이 공간을 만들 때~" 형식
-- 회원들의 성공 사례를 대표자 시점에서 소개
-- "많은 회원분들이 ~한 결과를 얻으셨습니다"
-- 결론에서 "저희 센터만의 차별점은~"으로 자연스럽게 연결`,
+export interface ContentState {
+  businessName: string;
+  location: string;
+  mainKeyword: string;
+  subKeywords: string[];
+  contentType: ContentType;
+  writerPerspective: WriterPerspective;
+  targetAudience?: string;
+  uniquePoint?: string;
+  customTitle?: string;
 
-  informative: `
-### 글쓰기 스타일: 정보 제공형 (대표자 시점)
-- 센터 관계자가 시설과 프로그램을 상세히 안내
-- 객관적인 데이터와 수치 중심 (기구 수, 평수, 트레이너 자격 등)
-- "저희 센터는~", "저희가 보유한~" 형식으로 정보 전달
-- 운영 시간, 가격, 시설 스펙을 명확히 제시
-- FAQ 형식으로 자주 묻는 질문에 대표자가 답변하는 형식
-- "궁금하신 점은 언제든 문의해 주세요"로 마무리`,
+  // 사실 데이터 (필수!)
+  facts: Facts;
 
-  comparison: `
-### 글쓰기 스타일: 비교 분석형 (대표자 시점)
-- 대표자가 자사 센터의 차별점을 설명하는 형식
-- "다른 센터와 비교했을 때 저희의 강점은~"
-- 자사만의 독특한 장점을 부각하며 설명
-- 가격 대비 가치, 시설의 차별점을 대표자 관점에서 설명
-- "저희가 특히 신경 쓴 부분은~"
-- "이런 분들께 저희 센터를 추천드립니다"로 마무리`,
-
-  review: `
-### 글쓰기 스타일: 회원 성과 소개형 (대표자 시점)
-- 대표자가 회원들의 성공 사례를 소개하는 형식
-- "저희 센터 회원 OOO님의 이야기입니다"
-- 회원들의 변화 과정을 대표자 시점에서 설명
-- "이 회원분은 처음 오셨을 때~, 지금은~"
-- 트레이너와 회원의 협력 과정 소개
-- "앞으로도 더 많은 분들의 변화를 도와드리겠습니다"`,
-
-  guide: `
-### 글쓰기 스타일: 가이드/안내형 (대표자 시점)
-- 센터 관계자가 처음 방문하시는 분들을 위해 안내하는 형식
-- "저희 센터 처음 방문하시는 분들을 위한 안내입니다"
-- 단계별 안내 (상담 예약 → 방문 → 체험 → 등록)
-- "저희가 준비해 둔~", "저희 센터에서는~" 형식
-- 방문 전 꿀팁을 대표자가 직접 알려주는 형식
-- "편하게 방문해 주시면 친절히 안내해 드리겠습니다"`,
-};
-
-// 검색 의도별 다양한 본문 구조
-const INTENT_STRUCTURES: Record<SearchIntent, string[]> = {
-  information: [
-    `【핵심 답변】 → 【상세 설명】 → 【실제 사례】 → 【추가 정보】 → 【FAQ】`,
-    `【정의/개념】 → 【장점 리스트】 → 【활용 방법】 → 【주의사항】 → 【결론】`,
-    `【결론 먼저】 → 【근거 1】 → 【근거 2】 → 【근거 3】 → 【요약】`,
-  ],
-  transaction: [
-    `【가격/혜택 핵심】 → 【상세 가격표】 → 【등록 방법】 → 【후기】 → 【문의안내】`,
-    `【지금 등록해야 하는 이유】 → 【가격 비교】 → 【혜택 안내】 → 【등록 절차】 → 【FAQ】`,
-    `【특별 할인 안내】 → 【시설 소개】 → 【프로그램 안내】 → 【가격표】 → 【예약 방법】`,
-  ],
-  navigation: [
-    `【찾아오는 방법】 → 【주차 안내】 → 【시설 소개】 → 【이용 팁】 → 【연락처】`,
-    `【위치 및 교통】 → 【주변 랜드마크】 → 【주차 정보】 → 【영업시간】 → 【문의】`,
-    `【대중교통 이용법】 → 【자차 이용 시】 → 【주차 꿀팁】 → 【내부 안내】 → 【정보 요약】`,
-  ],
-  location: [
-    `【업체 핵심 정보】 → 【시설 둘러보기】 → 【프로그램/서비스】 → 【실제 후기】 → 【예약 안내】`,
-    `【첫인상 & 분위기】 → 【시설 상세】 → 【가격 및 프로그램】 → 【장단점 솔직 후기】 → 【추천 대상】`,
-    `【이곳을 선택한 이유】 → 【시설 체험기】 → 【서비스 만족도】 → 【가격 대비 가치】 → 【총평】`,
-  ],
-};
-
-// 검색 의도별 이미지 프롬프트 세트
-const INTENT_IMAGE_SETS: Record<SearchIntent, string[][]> = {
-  information: [
-    [
-      '운동 효과를 보여주는 비포애프터 결과 사진',
-      '전문 트레이너가 올바른 자세를 시연하는 모습',
-      '다양한 운동 기구가 배치된 트레이닝 존 전경',
-      '회원들이 그룹 수업에 참여하는 활기찬 모습',
-      '운동 프로그램 설명이 담긴 안내판',
-      '깔끔하게 정리된 운동 기구 클로즈업',
-      '수업 시간표가 적힌 안내 게시판',
-      '회원들의 운동 목표 달성 후기가 적힌 게시판',
-      '전문 자격증이 전시된 트레이너 프로필 존',
-      '운동 후 휴식을 취할 수 있는 라운지 공간',
-    ],
-    [
-      '넓은 공간에서 진행되는 소규모 그룹 레슨',
-      '1:1 개인 지도 중인 트레이너와 회원',
-      '체계적인 프로그램 커리큘럼 안내 자료',
-      '회원 성공 사례가 담긴 후기 게시판',
-      '최신 운동 기구가 갖춰진 메인 운동 공간',
-    ],
-  ],
-  transaction: [
-    [
-      '한눈에 보는 회원권 가격표 안내판',
-      '신규 회원 특별 할인 이벤트 배너',
-      '3개월/6개월/12개월 이용권 비교표',
-      '회원 등록 절차 안내 데스크',
-      '카드/현금 결제가 가능한 접수처',
-      '이벤트 기간 한정 특가 안내문',
-      '회원권 구매 시 제공되는 웰컴 키트',
-      '프리미엄 회원 전용 특전 안내',
-      '단체 등록 시 추가 할인 안내문',
-      '첫 달 무료 체험권 안내 배너',
-    ],
-    [
-      '월별 회원권 가격 상세 안내판',
-      '장기 등록 시 할인율 비교 그래프',
-      '신규 회원 프로모션 홍보물',
-      '결제 방법 안내가 적힌 접수 데스크',
-      '회원 전용 앱 다운로드 QR 코드',
-    ],
-  ],
-  navigation: [
-    [
-      '건물 외관과 눈에 띄는 간판 전경',
-      '지하철역에서 도보 경로를 보여주는 약도',
-      '넓은 지하 주차장 입구 모습',
-      '건물 로비와 엘리베이터 위치 안내',
-      '층별 안내도가 있는 로비 전경',
-      '주차 가능 대수가 표시된 주차장',
-      '대중교통 정류장에서 바라본 건물',
-      '주변 편의시설(카페, 식당)이 보이는 거리 전경',
-      '야간에도 찾기 쉬운 조명이 켜진 간판',
-      '1층 입구에서 바라본 내부 로비',
-    ],
-    [
-      '네비게이션 검색 시 나오는 정확한 주소 안내',
-      '가장 가까운 지하철 출구 번호 안내',
-      '무료 주차 2시간 안내 표지판',
-      '건물 주변 주요 랜드마크 표시 지도',
-      '비 오는 날에도 편리한 지하 연결 통로',
-    ],
-  ],
-  location: [
-    [
-      '탁 트인 메인 운동 공간 파노라마 뷰',
-      '최신 유산소 기구가 줄지어 있는 카디오 존',
-      '다양한 무게의 덤벨이 정렬된 프리웨이트 존',
-      '거울과 조명이 설치된 스트레칭 공간',
-      '쾌적한 샤워실과 파우더룸 내부',
-      '개인 물품 보관이 가능한 락커룸',
-      '휴식과 대화가 가능한 카페테리아 공간',
-      '소그룹 수업이 진행되는 스튜디오룸',
-      '회원 후기와 인증샷이 전시된 게시판',
-      '프런트 데스크와 친절한 직원 모습',
-    ],
-    [
-      '넓고 쾌적한 메인 운동 공간 전경',
-      '고급 브랜드 운동 기구가 배치된 모습',
-      '전문 트레이너 팀 단체 프로필 사진',
-      '청결하게 관리되는 샤워실 내부',
-      '회원들이 운동하는 활기찬 분위기',
-      '개인 PT룸에서 진행되는 1:1 수업',
-      '운동 전후 스트레칭 공간',
-      '음료와 간식을 구매할 수 있는 매점',
-      '회원 휴게 공간과 물품 보관함',
-      '야간에도 환하게 켜진 24시 운영 안내',
-    ],
-  ],
-};
-
-// 검색 의도별 첫 문단 템플릿 (인사말 없이 바로 핵심/기대감으로 시작)
-const INTENT_OPENINGS: Record<SearchIntent, string[]> = {
-  information: [
-    '{keyword}, 결론부터 말씀드리면 이렇습니다.',
-    '{keyword} 효과를 제대로 보려면 이 3가지를 꼭 알아야 합니다.',
-    '많은 분들이 {keyword}에 대해 오해하고 계신 부분이 있습니다.',
-    '{keyword} 시작 전, 이것만 알면 시행착오를 줄일 수 있습니다.',
-  ],
-  transaction: [
-    '{keyword} 가격, 솔직하게 공개합니다.',
-    '지금 등록하면 최대 30% 할인받을 수 있는 방법이 있습니다.',
-    '{businessName} 가격표, 다른 곳과 비교해 보세요.',
-    '이 글 끝까지 보시면 숨은 할인 혜택까지 알 수 있습니다.',
-  ],
-  navigation: [
-    '{businessName} 오시는 길, 헤매지 않도록 상세히 정리했습니다.',
-    '지하철에서 내려 도보 3분, 가장 빠른 경로입니다.',
-    '주차 걱정 없이 오시는 방법, 여기 다 있습니다.',
-    '처음 방문이라면 이 경로로 오시면 됩니다.',
-  ],
-  location: [
-    '{keyword} 찾고 계신다면, 저희 {businessName}을 먼저 확인해 보세요.',
-    '러닝머신 20대, 프리웨이트 존 50평 - 저희 시설 스펙입니다.',
-    '{keyword}에서 저희 센터가 선택받는 이유, 3가지로 정리했습니다.',
-    '가격, 시설, 위치 - 저희 {businessName} 핵심 정보 한눈에 보기.',
-  ],
-};
-
-// 검색 의도별 특화 섹션
-function getIntentSpecificSections(state: AppState, style: WritingStyle): string {
-  const { searchIntent, businessName, category, mainKeyword } = state;
-  const selectedStructure = INTENT_STRUCTURES[searchIntent][
-    Math.floor(Math.random() * INTENT_STRUCTURES[searchIntent].length)
-  ];
-  const selectedImages = INTENT_IMAGE_SETS[searchIntent][
-    Math.floor(Math.random() * INTENT_IMAGE_SETS[searchIntent].length)
-  ];
-  const selectedOpening = INTENT_OPENINGS[searchIntent][
-    Math.floor(Math.random() * INTENT_OPENINGS[searchIntent].length)
-  ]
-    .replace(/{keyword}/g, mainKeyword)
-    .replace(/{businessName}/g, businessName);
-
-  const imageInstructions = selectedImages
-    .map((img, idx) => `${idx + 1}. [이미지: ${img}]`)
-    .join('\n');
-
-  let specificSections = '';
-
-  switch (searchIntent) {
-    case 'information':
-      specificSections = `
-## 정보형 콘텐츠 특화 구성
-
-### 필수 포함 요소:
-1. 핵심 질문에 대한 명확한 답변 (첫 문단)
-2. 단계별/리스트형 정보 정리
-3. 초보자도 이해하기 쉬운 설명
-4. "알아두면 좋은 팁" 섹션
-5. 관련 FAQ 5개 이상
-
-### 권장 소제목 예시:
-- "${mainKeyword}란?"
-- "${mainKeyword} 효과 3가지"
-- "처음 시작하는 분들을 위한 가이드"
-- "자주 하는 실수와 해결법"
-- "${mainKeyword} 관련 자주 묻는 질문"`;
-      break;
-
-    case 'transaction':
-      specificSections = `
-## 거래형 콘텐츠 특화 구성
-
-### 필수 포함 요소:
-1. 가격표/이용권 정보 (최상단 배치)
-2. 현재 진행 중인 이벤트/할인
-3. 타 업체 대비 가격 경쟁력
-4. 등록 절차 및 방법
-5. 결제 방법 안내
-6. "지금 등록해야 하는 이유" CTA
-
-### 가격 정보 작성 형식:
-────────────────────────────────
-【${businessName} 회원권 가격 안내】
-• 1개월: OO만원 → 특가 OO만원
-• 3개월: OO만원 → 특가 OO만원 (월 OO만원)
-• 6개월: OO만원 → 특가 OO만원 (월 OO만원)
-• 12개월: OO만원 → 특가 OO만원 (월 OO만원)
-※ 위 가격은 현재 이벤트 기간 한정입니다
-────────────────────────────────
-
-### 권장 소제목 예시:
-- "${businessName} 회원권 가격 총정리"
-- "지금 등록하면 받는 특별 혜택"
-- "가격 대비 이용 가치 분석"
-- "신규 회원 등록 절차 안내"`;
-      break;
-
-    case 'navigation':
-      specificSections = `
-## 이동형 콘텐츠 특화 구성
-
-### 필수 포함 요소:
-1. 정확한 주소 및 층수
-2. 대중교통 이용 방법 (지하철/버스)
-3. 자차 이용 시 네비게이션 검색어
-4. 주차 정보 (주차 가능 여부, 요금, 꿀팁)
-5. 영업시간 및 휴무일
-6. 주변 랜드마크 안내
-
-### 위치 정보 작성 형식:
-────────────────────────────────
-【${businessName} 오시는 길】
-• 주소: (상세 주소)
-• 지하철: OO역 O번 출구 도보 O분
-• 버스: OOO번, OOO번 (OO정류장 하차)
-• 주차: (주차 가능 여부 및 요금)
-• 네비 검색: "${businessName}" 또는 "(주소)"
-────────────────────────────────
-
-### 권장 소제목 예시:
-- "${businessName} 찾아오시는 길"
-- "대중교통으로 오시는 방법"
-- "자차 이용 시 주차 안내"
-- "주변 편의시설 안내"`;
-      break;
-
-    case 'location':
-      specificSections = `
-## 장소형 콘텐츠 특화 구성 (피트니스 업종 핵심)
-
-### 필수 포함 요소:
-1. 업체 첫인상 및 전체 분위기
-2. 시설 상세 둘러보기 (공간별 설명)
-3. 프로그램/서비스 종류 및 특징
-4. 강사/트레이너 소개 및 전문성
-5. 실제 이용 경험 및 솔직 후기
-6. 가격 대비 가치 평가
-7. 추천 대상 및 이런 분께 추천
-
-### 시설 소개 작성 형식:
-────────────────────────────────
-【${businessName} 시설 안내】
-• 전체 규모: OO평
-• 운동 공간: (상세 설명)
-• 부대시설: 샤워실, 락커룸, (기타)
-• 특별 시설: (차별화 포인트)
-────────────────────────────────
-
-### 권장 소제목 예시:
-- "${businessName}을(를) 선택한 이유"
-- "시설 구석구석 둘러보기"
-- "프로그램 및 수업 소개"
-- "O개월 다녀본 솔직 후기"
-- "이런 분께 추천드립니다"`;
-      break;
-  }
-
-  return `
-${specificSections}
-
-## 이번 글의 구조 (이 순서로 작성)
-${selectedStructure}
-
-## 첫 문단 시작 문장 (이 문장으로 시작하거나 변형해서 사용)
-"${selectedOpening}"
-
-## 이번 글에 사용할 이미지 프롬프트 (이 이미지들을 본문 전체에 배치)
-${imageInstructions}
-
-중요: 위 이미지 설명을 그대로 사용하지 말고, 본문 내용에 맞게 구체화하여 작성하세요.
-예: "넓은 공간에서 진행되는 소규모 그룹 레슨"
-→ [이미지: 50평 규모의 스튜디오에서 6명이 함께하는 필라테스 그룹 수업]
-`;
-}
-
-// 검색 의도별 전략 생성
-function getSearchIntentStrategy(state: AppState): string {
-  const intentInfo = SEARCH_INTENT_INFO[state.searchIntent];
-
-  const strategies: Record<string, string> = {
-    information: `
-### 검색 의도: 정보형 (Information)
-- 의도: "알고 싶다"
-- 전략: 서론 최대한 짧게, 정의/방법/리스트 형태로 핵심 요약
-- 구조: 질문에 대한 답변을 먼저 제시, 세부 설명은 그 뒤에
-- 첫 문단에서 바로 핵심 정보 제공`,
-
-    transaction: `
-### 검색 의도: 거래형 (Transaction)
-- 의도: "하고 싶다/사고 싶다"
-- 전략: 가격 비교표, 할인 정보, 등록 방법을 최상단에 배치
-- 구조: 가격/혜택 정보 먼저, 상세 설명은 그 뒤에
-- CTA(행동 유도)를 강하게 배치`,
-
-    navigation: `
-### 검색 의도: 이동형 (Navigation)
-- 의도: "가고 싶다"
-- 전략: 구체적 경로, 주차 정보, 대중교통 안내 상세히
-- 구조: 찾아오는 방법을 최우선으로 배치
-- 지도, 주소, 주차 정보 명확히 제시`,
-
-    location: `
-### 검색 의도: 장소형 (Location) - 피트니스 업종 핵심
-- 의도: "어디가 좋을까"
-- 전략: 위치, 주차, 영업시간, 가격표 등 플레이스 정보 상세 정리
-- 구조: 업체 핵심 정보를 먼저, 차별점과 후기로 신뢰 구축
-- 다른 곳과 비교했을 때 왜 여기가 좋은지 명확히 제시`
+  // 고객 스토리용
+  customerStory?: {
+    customerProfile: string;
+    duration: string;
+    initialProblem: string;
+    trainerFeedback: string;
+    hardMoment: string;
+    changePoint: string;
   };
 
-  return `
-## 2025년 네이버 SEO 검색 의도 분석
+  // 직원 소개용
+  staffInfo?: {
+    name: string;
+    position: string;
+    career: string;
+    specialty: string;
+    philosophy: string;
+  };
+}
 
-선택된 검색 의도: ${intentInfo.name}
-${strategies[state.searchIntent]}
-`;
+// ============================================================
+// 글 유형별 정보
+// ============================================================
+
+export const CONTENT_TYPE_INFO: Record<ContentType, {
+  name: string;
+  experienceElements: number;  // 필수 경험 요소 개수
+  infoElements: number;        // 필수 정보 요소 개수
+}> = {
+  center_intro: {
+    name: '센터 소개형',
+    experienceElements: 3,
+    infoElements: 4,
+  },
+  customer_story: {
+    name: '고객 경험 서사형',
+    experienceElements: 5,
+    infoElements: 2,
+  },
+  exercise_info: {
+    name: '운동 정보형',
+    experienceElements: 2,
+    infoElements: 4,
+  },
+  medical_info: {
+    name: '전문 정보형',
+    experienceElements: 2,
+    infoElements: 5,
+  },
+  event_review: {
+    name: '행사/프로젝트형',
+    experienceElements: 4,
+    infoElements: 3,
+  },
+  staff_intro: {
+    name: '트레이너 소개형',
+    experienceElements: 4,
+    infoElements: 3,
+  },
+  promotion: {
+    name: '프로모션형',
+    experienceElements: 2,
+    infoElements: 4,
+  },
+};
+
+// ============================================================
+// 시점별 말투
+// ============================================================
+
+export const PERSPECTIVE_GUIDE: Record<WriterPerspective, {
+  name: string;
+  tone: string;
+  firstPerson: string;
+}> = {
+  owner: {
+    name: '대표자',
+    tone: '센터의 비전과 철학을 담아 따뜻하고 진정성 있게',
+    firstPerson: '저희 센터 / 제가 이 센터를 만들 때',
+  },
+  manager: {
+    name: '센터장',
+    tone: '현장을 가장 잘 아는 관리자로서 실질적이고 구체적으로',
+    firstPerson: '저희 센터 / 제가 현장에서 보면',
+  },
+  trainer: {
+    name: '트레이너',
+    tone: '전문가로서 회원 변화를 함께한 경험을 생생하게',
+    firstPerson: '제가 담당한 회원분 / 저는 트레이너로서',
+  },
+  fc: {
+    name: 'FC(상담사)',
+    tone: '상담 경험을 바탕으로 고객 니즈를 잘 아는 따뜻한 안내자',
+    firstPerson: '상담하다 보면 / 저희 센터를 찾아주시는 분들',
+  },
+};
+
+// ============================================================
+// 첫 문단 공식 (유형별 고정 슬롯)
+// ============================================================
+
+const FIRST_PARAGRAPH_FORMULA: Record<ContentType, string> = {
+  center_intro: `
+【첫 문단 공식 - 3문장 필수】
+1문장: 이 센터가 어떤 사람에게 맞는지 (결론)
+2문장: 다른 곳과 다른 차별점 1가지
+3문장: 방문 전 알면 좋은 것 1가지`,
+
+  customer_story: `
+【첫 문단 공식 - 3문장 필수】
+1문장: 회원 프로필 (OO대 OO, OO 고민)
+2문장: 처음 왔을 때 상태 (facts에 있는 수치 사용)
+3문장: 지금은 어떻게 달라졌는지 (결론 먼저)`,
+
+  exercise_info: `
+【첫 문단 공식 - 3문장 필수】
+1문장: 이 운동이 필요한 사람 (타겟 명시)
+2문장: 흔히 하는 실수 1가지
+3문장: 오늘 알려줄 핵심 해결법`,
+
+  medical_info: `
+【첫 문단 공식 - 3문장 필수】
+1문장: 이 증상에 대한 흔한 오해 1가지
+2문장: 실제 메커니즘 간략히
+3문장: 운동으로 접근하는 방법 예고`,
+
+  event_review: `
+【첫 문단 공식 - 3문장 필수】
+1문장: 행사/프로젝트 이름과 결과 (숫자 포함)
+2문장: 기획하게 된 계기 1가지
+3문장: 참여자 반응 한마디 (직접 인용)`,
+
+  staff_intro: `
+【첫 문단 공식 - 3문장 필수】
+1문장: 트레이너 이름과 전문 분야
+2문장: 이 일을 하게 된 계기 한마디
+3문장: 어떤 분들이 찾아오시는지`,
+
+  promotion: `
+【첫 문단 공식 - 3문장 필수】
+1문장: 핵심 혜택 (가장 매력적인 것)
+2문장: 대상과 기간
+3문장: 신청 방법 (바로 행동 가능하게)`,
+};
+
+// ============================================================
+// 메인 프롬프트 생성 함수
+// ============================================================
+
+export function generateFBAS2026Prompt(state: ContentState): string {
+  const contentInfo = CONTENT_TYPE_INFO[state.contentType];
+  const perspective = PERSPECTIVE_GUIDE[state.writerPerspective];
+  const firstParaFormula = FIRST_PARAGRAPH_FORMULA[state.contentType];
+
+  // facts 정리
+  const factsSection = buildFactsSection(state.facts);
+
+  // 조건부 요약 정보
+  const summarySection = buildSummarySection(state);
+
+  return `당신은 2026년 네이버 알고리즘에 최적화된 피트니스 블로그 전문 작가입니다.
+
+────────────────────────────────
+【최우선 규칙: 사실성 가드레일】
+────────────────────────────────
+
+아래 규칙을 어기면 전체 글이 무효 처리됩니다.
+
+1. 주소, 영업시간, 주차요금, 가격, 평수, 기구 수, 할인율, 자격증, 전후 수치 등 사실 데이터는 아래 【입력된 사실 정보】에 있을 때만 작성합니다.
+
+2. 【입력된 사실 정보】에 없는 항목은 임의로 생성하지 않고, 해당 위치에 "상담 시 안내" 또는 "방문 시 확인"으로 표기합니다.
+
+3. 임의 수치, 임의 후기, 임의 의학적 단정은 절대 금지입니다.
+
+4. 회원 후기를 작성할 때, 【입력된 사실 정보】의 전후 수치가 없으면 구체적 숫자 대신 "눈에 띄는 변화", "확실히 달라진 느낌" 등 정성적 표현을 사용합니다.
+
+────────────────────────────────
+【입력된 사실 정보】 - 이 값만 사실로 작성 가능
+────────────────────────────────
+${factsSection}
+
+────────────────────────────────
+【기본 정보】
+────────────────────────────────
+
+업체명: ${state.businessName}
+위치: ${state.location}
+메인 키워드: ${state.mainKeyword}
+보조 키워드: ${state.subKeywords.filter(k => k).join(', ') || '없음'}
+글 유형: ${contentInfo.name}
+글쓴이 시점: ${perspective.name}
+${state.targetAudience ? `타겟 독자: ${state.targetAudience}` : ''}
+${state.uniquePoint ? `핵심 차별점: ${state.uniquePoint}` : ''}
+${state.customTitle ? `지정 제목: ${state.customTitle}` : ''}
+
+${state.customerStory ? buildCustomerStorySection(state.customerStory) : ''}
+${state.staffInfo ? buildStaffSection(state.staffInfo) : ''}
+
+────────────────────────────────
+【글쓴이 시점: ${perspective.name}】
+────────────────────────────────
+
+말투: ${perspective.tone}
+1인칭: ${perspective.firstPerson}
+
+────────────────────────────────
+【필수 요소 개수】 - 비율 대신 개수로 체크
+────────────────────────────────
+
+경험 서사 요소 ${contentInfo.experienceElements}개 필수:
+- 실제 상황 묘사 (언제, 어디서, 누가)
+- 직접 인용 ("OOO라고 하셨어요")
+- 감정/갈등 (힘들었던 순간, 고민)
+- 전환점 (변화가 느껴진 순간)
+- 결과/깨달음
+
+정보 요소 ${contentInfo.infoElements}개 필수:
+- 프로그램/서비스 설명
+- 이용 흐름/절차
+- 시설/장비 안내
+- 문의/예약 방법
+- 가격/혜택 (facts에 있을 때만)
+
+────────────────────────────────
+${firstParaFormula}
+────────────────────────────────
+
+────────────────────────────────
+【${contentInfo.name} 본문 구조】
+────────────────────────────────
+${getContentStructure(state.contentType)}
+
+${state.contentType === 'medical_info' ? `
+────────────────────────────────
+【의료 정보 면책 규칙】
+────────────────────────────────
+
+1. "치료", "완치", "100% 개선" 등 의학적 단정 표현 금지
+2. "OO에 효과적입니다" 대신 "OO에 도움이 될 수 있습니다" 사용
+3. 글 마지막에 반드시 포함: "통증이 심하거나 지속되면 전문 의료기관 상담을 권장합니다"
+` : ''}
+
+────────────────────────────────
+【출력 규칙 3가지】
+────────────────────────────────
+
+1. 마크다운 금지: ** / ## / 이모지 절대 사용 금지
+2. 인사말 금지: "안녕하세요" 없이 바로 본론 시작
+3. 【섹션제목】 형식 + ──────────────────────────────── 구분선 사용
+
+────────────────────────────────
+【출력 형식】
+────────────────────────────────
+
+${state.customTitle ? `【제목】\n${state.customTitle}` : `【제목 후보 3개】
+- 지역 + 핵심 키워드 + 구체적 결과
+- 타겟 + 기간 + 변화
+- 질문형 또는 숫자 포함형`}
+
+────────────────────────────────
+
+【첫 문단】
+(위 첫 문단 공식대로 3문장)
+
+[이미지: 대표 사진 - 구체적 설명]
+
+────────────────────────────────
+
+(본문 섹션들 - 섹션당 이미지 1개씩)
+
+────────────────────────────────
+
+${summarySection}
+
+────────────────────────────────
+【자리표시자 예시】 - 이 형식으로 작성하되, 값은 facts 기반으로
+────────────────────────────────
+
+${getPlaceholderExample(state.contentType, state.writerPerspective)}
+
+────────────────────────────────
+【최종 검수 체크 5가지】
+────────────────────────────────
+
+글 완성 후 아래 5가지를 확인하세요:
+
+1. 첫 문단 3문장 안에 결론/핵심이 있는가?
+2. 과장/단정 표현("최고", "완치", "100%")이 없는가?
+3. facts에 없는 수치/정보가 생성되지 않았는가?
+4. 섹션이 최소 5개 이상인가?
+5. 문의/예약 유도(CTA)가 1개 이상 있는가?
+
+────────────────────────────────
+
+2500자 이상 작성.
+이미지는 섹션당 1개씩 자연스럽게 배치.`;
+}
+
+// ============================================================
+// 헬퍼 함수들
+// ============================================================
+
+function buildFactsSection(facts: Facts): string {
+  const lines: string[] = [];
+
+  if (facts.address) lines.push(`주소: ${facts.address}`);
+  if (facts.hours) lines.push(`영업시간: ${facts.hours}`);
+  if (facts.parking) lines.push(`주차: ${facts.parking}`);
+  if (facts.priceTable) lines.push(`가격: ${facts.priceTable}`);
+  if (facts.areaPyeong) lines.push(`규모: ${facts.areaPyeong}`);
+  if (facts.machinesCount) lines.push(`기구: ${facts.machinesCount}`);
+  if (facts.trainerCerts) lines.push(`트레이너 자격: ${facts.trainerCerts}`);
+  if (facts.programList) lines.push(`프로그램: ${facts.programList}`);
+  if (facts.memberBefore) lines.push(`회원 전 상태: ${facts.memberBefore}`);
+  if (facts.memberAfter) lines.push(`회원 후 상태: ${facts.memberAfter}`);
+  if (facts.eventPeriod) lines.push(`이벤트 기간: ${facts.eventPeriod}`);
+  if (facts.eventBenefit) lines.push(`이벤트 혜택: ${facts.eventBenefit}`);
+
+  return lines.length > 0
+    ? lines.join('\n')
+    : '(입력된 사실 정보 없음 - 수치/가격 등은 "상담 시 안내"로 표기)';
+}
+
+function buildCustomerStorySection(story: ContentState['customerStory']): string {
+  if (!story) return '';
+
+  return `
+────────────────────────────────
+【회원 스토리 정보】
+────────────────────────────────
+회원 프로필: ${story.customerProfile}
+기간: ${story.duration}
+초기 문제: ${story.initialProblem}
+트레이너 피드백 (직접 인용): "${story.trainerFeedback}"
+힘들었던 순간: ${story.hardMoment}
+변화 느낀 순간: ${story.changePoint}`;
+}
+
+function buildStaffSection(staff: ContentState['staffInfo']): string {
+  if (!staff) return '';
+
+  return `
+────────────────────────────────
+【트레이너 정보】
+────────────────────────────────
+이름: ${staff.name}
+직책: ${staff.position}
+경력: ${staff.career}
+전문 분야: ${staff.specialty}
+트레이닝 철학: ${staff.philosophy}`;
+}
+
+function buildSummarySection(state: ContentState): string {
+  const { facts, businessName, location } = state;
+
+  const lines: string[] = [
+    `【${businessName} 요약 정보】`,
+    '',
+    `업체명: ${businessName}`,
+    `위치: ${location}`,
+  ];
+
+  // 조건부 출력 - facts에 있을 때만
+  if (facts.hours) {
+    lines.push(`영업시간: ${facts.hours}`);
+  } else {
+    lines.push(`영업시간: 상담 시 안내`);
+  }
+
+  if (facts.parking) {
+    lines.push(`주차: ${facts.parking}`);
+  } else {
+    lines.push(`주차: 방문 시 확인`);
+  }
+
+  if (facts.priceTable) {
+    lines.push(`가격: ${facts.priceTable}`);
+  } else {
+    lines.push(`가격: 상담 시 안내`);
+  }
+
+  if (state.uniquePoint) {
+    lines.push(`특징: ${state.uniquePoint}`);
+  }
+
+  return lines.join('\n');
+}
+
+function getContentStructure(contentType: ContentType): string {
+  const structures: Record<ContentType, string> = {
+    center_intro: `
+1. 첫인상/분위기 (경험적 도입)
+2. 시설 둘러보기 (공간별)
+3. 프로그램/서비스
+4. 가격 안내 (facts 기반, 없으면 "상담 시 안내")
+5. 찾아오는 길
+6. 이런 분께 추천`,
+
+    customer_story: `
+1. 회원 소개 + 결론 먼저 (어떻게 달라졌는지)
+2. 처음 왔을 때 상태 (facts 수치 사용)
+3. 트레이너 피드백 (직접 인용 필수)
+4. 중간에 힘들었던 순간
+5. 변화가 느껴진 순간 (구체적 상황)
+6. 현재 상태 + 회원 한마디`,
+
+    exercise_info: `
+1. 이 운동이 필요한 분
+2. 운동 방법 (단계별)
+3. 흔한 실수와 교정법
+4. 기대 효과
+5. 저희 센터에서는 이렇게 진행해요`,
+
+    medical_info: `
+1. 이런 분들이 많이 오세요 (공감)
+2. 원인과 메커니즘 (전문 지식)
+3. 운동이 도움되는 이유
+4. 추천 운동/관리법
+5. 저희 센터의 접근법
+6. 의료기관 상담 권고 (필수)`,
+
+    event_review: `
+1. 행사/프로젝트 소개 + 결과
+2. 기획하게 된 이유
+3. 진행 과정
+4. 참여자 반응 (직접 인용)
+5. 성과 및 다음 계획`,
+
+    staff_intro: `
+1. 트레이너 프로필
+2. 이 일을 시작한 계기
+3. 트레이닝 철학/스타일
+4. 기억에 남는 회원 에피소드
+5. 이런 분들께 추천`,
+
+    promotion: `
+1. 핵심 혜택 (가장 매력적인 것)
+2. 상세 내용 및 조건
+3. 대상 및 기간
+4. 신청 방법
+5. 이전 참여자 후기 (있을 때만)`,
+  };
+
+  return structures[contentType];
+}
+
+function getPlaceholderExample(contentType: ContentType, perspective: WriterPerspective): string {
+  if (contentType === 'customer_story' && perspective === 'trainer') {
+    return `"제가 담당한 회원분 중 기억에 남는 분이 계세요.
+
+[회원 프로필] OO대 OO이셨는데, 처음 오셨을 때 [facts의 전 상태 수치]였어요.
+[초기 문제]로 고민이 많으셨죠.
+
+'[트레이너 피드백 직접 인용]'이라고 말씀드렸어요.
+
+[기간]차쯤 '[힘들었던 순간 - 회원 말 직접 인용]'이라고 하셔서
+[트레이너가 한 설명/격려]라고 말씀드렸어요.
+
+[변화 시점]에 '[변화 느낀 순간 - 회원 말 직접 인용]'
+
+지금은 [facts의 후 상태 수치, 없으면 정성적 표현]
+이런 변화를 함께 만들어가는 게 이 일의 보람이에요."
+
+(위 [괄호] 부분을 실제 입력값으로 대체)`;
+  }
+
+  if (contentType === 'center_intro' && perspective === 'owner') {
+    return `"이 공간을 만들 때 가장 중요하게 생각한 게 있어요.
+
+'[핵심 철학/비전 한 문장]'
+
+[이 철학이 나온 배경 - 개인 경험]
+
+그래서 저희 센터는 [차별점]을 만들려고 노력해요.
+
+[facts에 시설 규모가 있으면] 규모는 [평수], [기구 수] 정도예요.
+[없으면] 규모는 방문하시면 직접 확인하실 수 있어요.
+
+많은 분들이 '[회원들이 자주 하는 말 - 직접 인용]'라고 하세요."
+
+(위 [괄호] 부분을 실제 입력값으로 대체, facts에 없으면 해당 문장 생략)`;
+  }
+
+  if (contentType === 'medical_info') {
+    return `"[증상명]으로 상담 오시는 분들이 정말 많아요.
+
+많은 분들이 '[흔한 오해]'라고 생각하시는데,
+실제로는 [정확한 메커니즘 설명]이에요.
+
+해부학적으로 보면 [원리 설명 - 전문 용어 + 쉬운 설명]
+
+그래서 저는 [증상명] 회원분들께 [접근법]을 먼저 안내드려요.
+
+실제로 이 방법으로 [정성적 결과 - "많이 좋아지셨다", "편해졌다고 하신다"]
+
+단, 통증이 심하거나 지속되면 전문 의료기관 상담을 권장합니다."
+
+(의학적 단정 금지, 의료기관 권고 필수)`;
+  }
+
+  // 기본 템플릿
+  return `"[첫 문단 공식에 따른 3문장]
+
+[이미지: 구체적 설명]
+
+────────────────────────────────
+
+[본문 섹션 1]
+[경험 요소: 실제 상황 + 직접 인용]
+
+[이미지: 해당 섹션 관련]
+
+────────────────────────────────
+
+[본문 섹션 2]
+[정보 요소: facts 기반 데이터]
+
+..."
+
+(각 섹션에 경험 요소와 정보 요소를 필수 개수만큼 배치)`;
+}
+
+// ============================================================
+// 라이트 모드 (토큰 절약용)
+// ============================================================
+
+export function generateFBAS2026PromptLite(state: ContentState): string {
+  const contentInfo = CONTENT_TYPE_INFO[state.contentType];
+  const perspective = PERSPECTIVE_GUIDE[state.writerPerspective];
+  const factsSection = buildFactsSection(state.facts);
+
+  return `2026 네이버 SEO 피트니스 블로그.
+
+【최우선 규칙】
+- facts에 있는 값만 사실로 작성
+- 없는 수치/가격은 "상담 시 안내"로 표기
+- 임의 수치 생성 절대 금지
+
+【facts】
+${factsSection}
+
+【기본정보】
+업체: ${state.businessName} (${state.location})
+키워드: ${state.mainKeyword}
+글유형: ${contentInfo.name}
+시점: ${perspective.name}
+${state.customTitle ? `제목: ${state.customTitle}` : ''}
+
+【필수요소】
+경험서사 ${contentInfo.experienceElements}개 (상황, 인용, 감정, 전환점)
+정보 ${contentInfo.infoElements}개 (프로그램, 절차, 시설, 문의방법)
+
+【규칙 3가지】
+1. 마크다운/** 이모지 금지
+2. 인사말 없이 바로 시작
+3. 【섹션】 + ──── 구분선 사용
+
+【출력】
+${state.customTitle ? `【제목】${state.customTitle}` : '【제목】3개'}
+────
+【첫문단】3문장 (결론-차별점-안내)
+────
+【본문】섹션당 이미지 1개
+────
+【요약】업체명/위치/영업시간(facts 기반)/가격(facts 기반)
+
+2000자 이상.`;
+}
+
+// ============================================================
+// 수정 프롬프트
+// ============================================================
+
+export function generateModifyPrompt(originalContent: string, userRequest: string): string {
+  return `블로그 글 수정.
+
+【수정 요청】${userRequest}
+
+【기존 글】
+${originalContent}
+
+【규칙】
+1. facts에 없는 수치 추가 금지
+2. 이미지 프롬프트 유지
+3. 구분선 유지
+4. 마크다운/이모지 금지
+
+전체 글 출력.`;
+}
+
+// ============================================================
+// AppState → ContentState 어댑터 (기존 컴포넌트 호환용)
+// ============================================================
+
+// 검색의도 → 글 유형 매핑
+function searchIntentToContentType(intent: SearchIntent): ContentType {
+  const mapping: Record<SearchIntent, ContentType> = {
+    location: 'center_intro',
+    information: 'exercise_info',
+    transaction: 'promotion',
+    navigation: 'center_intro',
+  };
+  return mapping[intent];
+}
+
+// 페르소나 텍스트 → WriterPerspective 매핑
+function parseWriterPerspective(persona: string): WriterPerspective {
+  if (!persona) return 'owner';
+  const lower = persona.toLowerCase();
+  if (lower.includes('트레이너') || lower.includes('강사') || lower.includes('코치')) return 'trainer';
+  if (lower.includes('센터장') || lower.includes('관리')) return 'manager';
+  if (lower.includes('fc') || lower.includes('상담')) return 'fc';
+  return 'owner';
+}
+
+// AppState의 attributes에서 Facts 추출
+function extractFacts(attributes: Record<string, string>): Facts {
+  const facts: Facts = {};
+
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!value) continue;
+    const k = key.toLowerCase();
+
+    if (k.includes('주소') || k.includes('위치')) facts.address = value;
+    else if (k.includes('영업') || k.includes('시간') || k.includes('운영')) facts.hours = value;
+    else if (k.includes('주차')) facts.parking = value;
+    else if (k.includes('가격') || k.includes('요금') || k.includes('회원권') || k.includes('비용')) facts.priceTable = value;
+    else if (k.includes('평') || k.includes('규모') || k.includes('면적')) facts.areaPyeong = value;
+    else if (k.includes('기구') || k.includes('머신') || k.includes('장비')) facts.machinesCount = value;
+    else if (k.includes('자격') || k.includes('인증') || k.includes('자격증')) facts.trainerCerts = value;
+    else if (k.includes('프로그램') || k.includes('수업') || k.includes('클래스')) facts.programList = value;
+    else if (k.includes('이벤트') || k.includes('할인') || k.includes('혜택')) facts.eventBenefit = value;
+  }
+
+  return facts;
+}
+
+// AppState를 ContentState로 변환
+function appStateToContentState(state: AppState): ContentState {
+  return {
+    businessName: state.businessName,
+    location: state.mainKeyword, // 메인 키워드가 보통 "지역+업종" 형태
+    mainKeyword: state.mainKeyword,
+    subKeywords: state.subKeywords,
+    contentType: (state.contentType as ContentType) || searchIntentToContentType(state.searchIntent),
+    writerPerspective: parseWriterPerspective(state.writerPersona),
+    targetAudience: state.targetAudience || state.targetReader,
+    uniquePoint: state.uniquePoint,
+    customTitle: state.customTitle,
+    facts: (() => {
+      const baseFacts = extractFacts(state.attributes);
+      // 이미지 분석 JSON에서 추출한 facts를 병합
+      const imageResults = state.images
+        .map(img => img.analysisJson)
+        .filter((j): j is ImageAnalysisResult => !!j);
+      if (imageResults.length === 0) return baseFacts;
+      const imageFacts = extractFactsFromImageAnalysis(imageResults);
+      return mergeImageFacts(baseFacts, imageFacts);
+    })(),
+  };
+}
+
+// ============================================================
+// 기존 호환 함수들 (step-generate.tsx, step-result.tsx에서 사용)
+// ============================================================
+
+// ============================================================
+// 이미지 분석 JSON → Facts 승격/병합
+// ============================================================
+
+// 이미지 분석 결과에서 Facts로 승격 가능한 항목을 추출
+function extractFactsFromImageAnalysis(results: ImageAnalysisResult[]): Partial<Facts> {
+  const imageFacts: Partial<Facts> = {};
+
+  for (const r of results) {
+    // 기구/장비 → machinesCount (명확한 수량이 있는 것만)
+    if (r.equipment && r.equipment.length > 0) {
+      const equipStr = r.equipment
+        .map(e => e.count ? `${e.name} ${e.count}대` : e.name)
+        .join(', ');
+      if (equipStr) {
+        imageFacts.machinesCount = imageFacts.machinesCount
+          ? `${imageFacts.machinesCount}, ${equipStr}` : equipStr;
+      }
+    }
+
+    // 가격 정보 → priceTable
+    const priceTexts = [
+      ...r.numbersFound || [],
+      ...(r.textFound || []).filter(t => t.type === 'price').map(t => t.raw),
+    ];
+    if (priceTexts.length > 0) {
+      imageFacts.priceTable = imageFacts.priceTable
+        ? `${imageFacts.priceTable}, ${priceTexts.join(', ')}` : priceTexts.join(', ');
+    }
+
+    // 자격증 → trainerCerts
+    if (r.certificates && r.certificates.length > 0) {
+      const certStr = r.certificates
+        .map(c => [c.name, c.issuer, c.person].filter(Boolean).join(' / '))
+        .join('; ');
+      if (certStr) {
+        imageFacts.trainerCerts = imageFacts.trainerCerts
+          ? `${imageFacts.trainerCerts}; ${certStr}` : certStr;
+      }
+    }
+
+    // 간판/텍스트에서 주소 추출
+    const signTexts = (r.textFound || []).filter(t => t.type === 'sign').map(t => t.raw);
+    if (signTexts.length > 0 && !imageFacts.address) {
+      const addressLike = signTexts.find(t =>
+        /[시군구동로길]/.test(t) || /\d{1,3}층/.test(t)
+      );
+      if (addressLike) imageFacts.address = addressLike;
+    }
+
+    // 면적/규모 → areaPyeong
+    if (r.spaceSize && !imageFacts.areaPyeong) {
+      imageFacts.areaPyeong = `사진 기준 ${r.spaceSize}`;
+    }
+  }
+
+  return imageFacts;
+}
+
+// 기존 facts에 이미지 facts를 병합 (기존 facts 우선, 이미지는 보조)
+function mergeImageFacts(baseFacts: Facts, imageFacts: Partial<Facts>): Facts {
+  const merged = { ...baseFacts };
+  for (const [key, value] of Object.entries(imageFacts)) {
+    const k = key as keyof Facts;
+    if (!merged[k] && value) {
+      // 기존에 없는 항목만 이미지에서 채움
+      merged[k] = value;
+    } else if (merged[k] && value && k === 'machinesCount') {
+      // 기구 수는 이미지 정보로 보강
+      merged[k] = `${merged[k]} (사진 확인: ${value})`;
+    }
+  }
+  return merged;
+}
+
+// 이미지 분석 JSON을 프롬프트 컨텍스트로 변환
+function buildImageAnalysisContext(state: AppState): string {
+  const analyzed = state.images.filter(img => img.analysis || img.analysisJson);
+  if (analyzed.length === 0) return '';
+
+  let context = `\n────────────────────────────────\n【업로드 사진 분석 결과】\n────────────────────────────────\n\n`;
+
+  analyzed.forEach((img, idx) => {
+    const j = img.analysisJson;
+    if (j) {
+      // JSON 기반 구조화된 출력
+      const lines: string[] = [`[사진 ${idx + 1}]`];
+      if (j.placeType) lines.push(`장소: ${j.placeType}`);
+      if (j.equipment?.length) {
+        lines.push(`기구: ${j.equipment.map(e => e.count ? `${e.name} ${e.count}대` : e.name).join(', ')}`);
+      }
+      if (j.spaceSize) lines.push(`규모: ${j.spaceSize}`);
+      if (j.people?.exists && j.people.description) lines.push(`인물: ${j.people.description}`);
+      if (j.textFound?.length) {
+        lines.push(`텍스트: ${j.textFound.map(t => t.raw).join(' / ')}`);
+      }
+      if (j.numbersFound?.length) lines.push(`숫자/가격: ${j.numbersFound.join(', ')}`);
+      if (j.certificates?.length) {
+        lines.push(`자격증: ${j.certificates.map(c => `${c.name}(${c.issuer})`).join(', ')}`);
+      }
+      if (j.brandLogo?.length) lines.push(`브랜드: ${j.brandLogo.join(', ')}`);
+      if (j.mood?.impression) lines.push(`분위기: ${j.mood.impression}`);
+      if (j.recommendedSection) lines.push(`추천 섹션: ${j.recommendedSection}`);
+      if (j.claimSupport) lines.push(`활용: ${j.claimSupport}`);
+      context += lines.join('\n') + '\n\n';
+    } else if (img.analysis) {
+      // 폴백: 자유 텍스트
+      context += `[사진 ${idx + 1}]\n${img.analysis}\n\n`;
+    }
+  });
+
+  context += `────────────────────────────────
+위 사진 분석 내용 중 구체적 수치(기구 수, 가격, 자격증명)는 facts에 병합되어 사실로 작성됩니다.
+null 항목은 본문에 포함하지 마세요.
+각 사진의 추천 섹션에 맞는 위치에 [이미지: 사진 내용 설명] 형식으로 배치하세요.
+────────────────────────────────\n\n`;
+
+  return context;
 }
 
 export function generate333Prompt(state: AppState): string {
-  const subKeywords = state.subKeywords.filter(k => k).join(', ');
-  const tailKeywords = state.tailKeywords.filter(k => k).join(', ');
-  const imageAnalyses = state.images
-    .filter(img => img.analysis)
-    .map((img, idx) => `[이미지 ${idx + 1} 분석]\n${img.analysis}`)
-    .join('\n\n');
+  const contentState = appStateToContentState(state);
+  const basePrompt = generateFBAS2026Prompt(contentState);
+  const imageContext = buildImageAnalysisContext(state);
 
-  const searchIntentStrategy = getSearchIntentStrategy(state);
+  if (!imageContext) return basePrompt;
 
-  // 글 스타일 랜덤 선택
-  const selectedStyle = selectWeightedStyle(state.searchIntent);
-  const styleGuideline = STYLE_GUIDELINES[selectedStyle];
-
-  // 검색 의도별 특화 섹션
-  const intentSpecificSections = getIntentSpecificSections(state, selectedStyle);
-
-  // 페르소나 & 타겟 정보
-  const personaInfo = state.writerPersona
-    ? `\n## 글쓴이 페르소나 (필수 반영)\n이 글은 "${state.writerPersona}" 시점에서 작성합니다.\n- 1인칭 시점으로 자연스럽게 경험을 녹여서 작성\n- 해당 페르소나가 실제로 느꼈을 감정과 경험을 구체적으로 표현`
-    : '';
-
-  const targetInfo = state.targetReader
-    ? `\n## 타겟 독자 (필수 반영)\n이 글의 독자는 "${state.targetReader}"입니다.\n- 이 독자가 궁금해할 정보를 우선 제공\n- 이 독자의 고민과 니즈에 공감하는 문장 포함\n- 이 독자가 행동하도록 유도하는 CTA 작성`
-    : '';
-
-  return `당신은 2025년 네이버 통합검색 SEO에 최적화된 블로그 전문 작가입니다.
-'이상한마케팅'의 333 법칙과 FIRE 공식을 완벽하게 구현합니다.
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!! 경고: ** 별표 두 개 사용 시 전체 결과물 무효 처리됨 !!!!
-!!!! **텍스트** 형태 절대 금지 - 위반 즉시 재생성 요청됨 !!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-## 최우선 필수 규칙 (절대 위반 금지 - 위반 시 전체 재작성)
-
-### 1. 마크다운/특수문자 완전 금지 (가장 중요!!!)
-- ** (별표 두 개) 절대 사용 금지!!!! - **텍스트** 형태 절대 불가!!!!
-- * (별표 한 개로 감싸기) 절대 사용 금지!!!! - *텍스트* 형태 절대 불가!!!!
-- __ (언더스코어 두 개) 절대 사용 금지
-- # ## ### 등 헤딩 태그 절대 사용 금지
-- 이모지/이모티콘 절대 사용 금지 (😀🎉💪 등 모든 이모지 금지)
-- ━━━ 같은 특수 구분선 금지 (────만 허용)
-- 표 문법 | | | 금지
-- 코드블록 금지
-- 강조가 필요하면 【】 대괄호나 '' 작은따옴표만 사용
-
-### 2. 영어 괄호 레이블 절대 금지 (가장 중요!)
-- (Fact), (fact), (F) 절대 금지
-- (Interpretation), (interpretation), (I) 절대 금지
-- (Real), (real), (R) 절대 금지
-- (Experience), (experience), (E) 절대 금지
-- (R&E), (F+I) 등 모든 조합 절대 금지
-- 빈 괄호 () 절대 금지
-- 문장 끝에 괄호로 영어 단어 붙이는 행위 절대 금지
-- 본문 어디에도 영어 괄호 레이블이 있으면 전체 무효
-
-### 3. 글쓴이 시점: 센터 대표자/관계자 (필수)
-- 이 글은 반드시 "센터 대표자/관계자" 시점에서 작성합니다
-- 절대로 "이용자/회원/고객" 시점으로 작성하지 마세요
-- "저희 센터는~", "저희가 준비한~", "저희 트레이너들은~" 형식 사용
-- "내가 다녀보니~", "이용해보니~" 같은 고객 후기 시점 금지
-- 센터를 소개하고 안내하는 관계자의 목소리로 작성
-
-## 입력 정보
-- 업종: ${state.category}
-- 업체명: ${state.businessName}
-- 메인키워드: ${state.mainKeyword}
-- 보조키워드: ${subKeywords || '없음'}
-- 테일키워드(롱테일): ${tailKeywords || '없음'}
-- 타겟고객: ${state.targetAudience || '미지정'}
-- 핵심차별점: ${state.uniquePoint || '미지정'}
-- 속성정보: ${JSON.stringify(state.attributes, null, 2)}
-${state.customTitle ? `- 지정 제목: ${state.customTitle}` : '- 지정 제목: 없음 (AI가 제목 후보 생성)'}
-${personaInfo}${targetInfo}
-${imageAnalyses ? `\n## 업로드된 이미지 분석 결과 (반드시 본문에 반영)\n${imageAnalyses}` : ''}
-
----
-${searchIntentStrategy}
----
-
-## 이번 글의 작성 스타일 (반드시 적용)
-${styleGuideline}
-
----
-${intentSpecificSections}
----
-
-## 2025년 네이버 SEO 필수 적용 사항
-
-### F-패턴 대응 (필수)
-- 사용자는 글을 정독하지 않고 F자 형태로 훑어봄
-- 날씨 인사, 주말 이야기 등 불필요한 서론 절대 금지
-- 제목을 본문 맨 처음에 복사 붙여넣기 절대 금지 (이탈률 증가 주범)
-
-### 첫 문단 전략 (필수 - 3초 내 이탈 방지)
-- 위에서 제시한 "첫 문단 시작 문장"을 참고하여 작성
-- 인사말 없이 바로 핵심부터 시작
-- 독자가 "이 글에 내가 찾는 정보가 있겠구나" 확신하게 작성
-
-【첫 문단 절대 금지 사항】
-- "안녕하세요", "반갑습니다", "오늘은", "여러분" 등 인사말 절대 금지
-- "{업체명}입니다" 같은 자기소개로 시작 금지
-- "~에 대해 알아보겠습니다", "~를 소개합니다" 같은 뻔한 서론 금지
-- 질문만 던지고 답을 미루는 방식 금지
-- 제목을 그대로 복사해서 시작 금지
-- 날씨, 계절, 시간 이야기로 시작 금지
-
-【올바른 첫 문단 예시】
-- "결론부터 말씀드리면~" (핵심 먼저)
-- "이 3가지만 알면~" (구체적 숫자)
-- "지금 등록하면~" (즉각적 혜택)
-- "다른 곳과 비교했을 때~" (차별점)
-
-### 계단식 구조
-제목 → 대주제 → 소주제 → 본문 내용
-네이버 AI가 이해하기 쉬운 논리 구조로 작성
-
----
-
-## FIRE 공식 필수 적용 (괄호 레이블 절대 금지)
-
-모든 주장에 FIRE 요소를 자연스러운 문장으로 녹여서 작성하세요:
-
-1. 정확한 스펙, 수치, 데이터를 제시
-2. 왜 좋은지/나쁜지 해석을 덧붙임
-3. 직접 겪은 구체적 상황 설명
-4. 디테일한 경험 묘사
-
-⚠️ 절대 금지: 문장 뒤에 괄호로 영어 단어 붙이기
-- 절대 금지: "(Fact)", "(fact)", "(F)"
-- 절대 금지: "(Interpretation)", "(interpretation)", "(I)"
-- 절대 금지: "(Real)", "(real)", "(R)"
-- 절대 금지: "(Experience)", "(experience)", "(E)"
-- 절대 금지: "(R&E)", "(F+I)", 모든 영어 괄호 조합
-- 절대 금지: 빈 괄호 "()", 모든 형태의 괄호 레이블
-
-【나쁜 예시 - 절대 이렇게 쓰지 마세요】
-"러닝머신 20대(Fact)로 대기가 없습니다(Interpretation)."
-"탁 트인 공간에서(Real) 운동할 수 있습니다(Experience)."
-
-【올바른 예시 - 이렇게 자연스럽게 쓰세요】
-"러닝머신 20대, 프리웨이트 존 50평 규모로 퇴근 후 피크타임에도 기구 대기가 없습니다. 3개월간 주 5회 이용하며 단 한 번도 대기한 적 없었습니다."
-
----
-
-## 333 법칙 적용
-
-### 1. 헤드라인 (3초의 승부)
-- 메인키워드 포함 제목 3가지 안
-- 구체적 수치/결과 포함 (추상적 표현 금지)
-- 클릭을 유발하는 호기심 또는 명확한 이득
-
-### 2. 본문 흐름 (3단 논리)
-- 위에서 제시한 "이번 글의 구조"를 따라 작성
-- 검색 의도에 맞는 정보를 우선 배치
-
-### 3. CTA (행동 유도)
-- 검색 의도에 맞는 행동 유도
-- 정보형: "더 궁금한 점은 댓글로~"
-- 거래형: "지금 상담받으세요"
-- 이동형: "방문 전 전화 확인하세요"
-- 장소형: "체험 예약하세요"
-
----
-
-## 키워드 전략
-
-- 메인키워드 "${state.mainKeyword}"를 제목, 첫문단, 본문에 자연스럽게 배치
-- 키워드 반복 횟수 강박 금지 (AI는 맥락을 이해함)
-- 유의어, 연관어를 풍부하게 사용
-- 보조키워드도 본문 전체에 자연스럽게 분포
-- 테일키워드(롱테일): ${tailKeywords || '없음'} - 본문과 FAQ에 자연스럽게 녹여서 사용
-
-### 키워드 피로도 방지 (필수)
-- 동일한 키워드가 연속 문장에서 반복되지 않도록 주의
-- 한 문단 내 같은 키워드 최대 2회까지만 사용
-- 키워드 대신 "이곳", "여기", "해당 센터" 등 대명사/지시어로 자연스럽게 대체
-- 업체명도 반복 시 "이곳", "저희 센터" 등으로 변환
-- 독자가 읽을 때 어색하거나 광고처럼 느껴지지 않도록 자연스러운 문장 흐름 유지
-
----
-
-## 이미지 삽입 규칙 (필수 - 총 10장 이상)
-
-1. 위에서 제시한 "이번 글에 사용할 이미지 프롬프트"를 참고하여 본문에 배치
-2. 본문 내용에 맞게 이미지 설명을 구체화하여 작성
-3. 업로드된 이미지 분석 결과가 있다면 반드시 해당 내용을 본문에 자연스럽게 반영
-4. 텍스트 주장과 사진 증거가 일치하도록 구성
-
-### 이미지 설명 작성 규칙 (매우 중요):
-- 이미지 설명은 본문 내용과 직접 연결되어야 함
-- 추상적 표현 금지, 구체적이고 상세하게 작성
-- 본문에서 언급한 시설, 기구, 서비스명을 그대로 사용
-
-【좋은 예시】
-- [이미지: 러닝머신 20대와 사이클 10대가 배치된 넓은 유산소 존]
-- [이미지: PT 전문 트레이너가 회원에게 스쿼트 자세를 교정하는 모습]
-- [이미지: 월 5만원부터 시작하는 3개월 등록 할인 가격표]
-
-【나쁜 예시】
-- [이미지: 시설 사진] - 너무 추상적
-- [이미지: 운동 모습] - 구체적이지 않음
-
----
-
-## 출력 형식 규칙 (필수 준수 - 위반 시 전체 다시 작성)
-
-⚠️ 중요: 아래 규칙 위반 시 결과물 전체가 무효 처리됩니다.
-
-1. 마크다운 문법 완전 금지 (위반 시 재작성):
-   - ** (별표 두 개) 절대 금지 - "**텍스트**" 형태 절대 불가
-   - __ (언더스코어 두 개) 절대 금지
-   - # ## ### 등 헤딩 태그 절대 금지
-   - | | | 등 표 문법 절대 금지
-   - 코드블록 절대 금지
-   - 이모지/이모티콘 절대 금지 (모든 이모지 사용 불가)
-   - ━━━ 같은 특수문자 구분선 금지
-   - 강조가 필요하면 【】 괄호나 '' 작은따옴표 사용
-
-2. 괄호로 영어 표현 추가 절대 금지 (매우 중요 - 위반시 재작성):
-   - (Fact), (fact), (FACT) 등 대소문자 상관없이 절대 금지
-   - (Real), (real), (Experience), (experience) 절대 금지
-   - (Interpretation), (interpretation) 절대 금지
-   - (Real & Experience), (R&E), (F), (I), (R), (E) 절대 금지
-   - (Fact+Interpretation), (Real+Experience) 등 조합도 금지
-   - 어떤 문장 뒤에도 (영어 설명) 형태로 추가 설명 금지
-   - 모든 내용은 순수 한글로만 작성
-   - 괄호 안에 영어 단어 넣지 않기
-   - FIRE 공식은 자연스러운 문장으로만 표현하고 레이블은 절대 붙이지 않기
-
-3. 구분선 사용 (필수):
-   - 각 【섹션】 사이에 반드시 아래 형식의 구분선을 추가:
-
-────────────────────────────────
-
-   - 이 구분선은 네이버 블로그 붙여넣기 시 바로 구분선으로 인식됨
-   - 섹션 제목: 【제목】 형식
-   - 목록: 1. 2. 3. 또는 • 사용
-   - 정보: 세로 나열
-
-4. 네이버 블로그 에디터에 바로 붙여넣기 가능한 형태로 작성
-
-5. 이미지 위치 표시: [이미지: 구체적인 사진 설명] 형식으로 작성
-
----
-
-## 출력 형식 (검색 의도에 맞게 섹션 구성 조정 가능)
-
-${state.customTitle ? `【제목】
-${state.customTitle}
-
-(위의 지정된 제목을 그대로 사용합니다. 제목을 변경하지 마세요.)` : `【제목 후보】
-1. (제목1 - 메인키워드 + 구체적 수치/결과)
-2. (제목2 - 호기심 유발형)
-3. (제목3 - 명확한 이득 제시형)`}
-
-────────────────────────────────
-${(state.searchIntent === 'information' || state.searchIntent === 'transaction') ? `
-【목차】
-(위에서 제시한 "이번 글의 구조"에 맞게 작성)
-
-────────────────────────────────
-` : ''}
-【첫 문단】
-(인사말 없이 바로 시작 - 위에서 제시한 첫 문단 시작 문장 참고)
-
-[이미지: 업체 대표 사진]
-
-────────────────────────────────
-
-(이하 검색 의도와 글 스타일에 맞게 본문 섹션 구성)
-
-────────────────────────────────
-
-【자주 묻는 질문】
-Q. (검색 의도에 맞는 질문 1)
-A. (구체적 답변)
-
-Q. (질문 2)
-A. (답변)
-
-Q. (질문 3)
-A. (답변)
-
-────────────────────────────────
-
-【한눈에 보는 ${state.businessName} 요약】
-${state.businessName}은(는) ${state.mainKeyword} 지역에서
-(업체의 핵심 장점 2-3가지를 간결하게 요약)
-
-• 위치: (주소)
-• 평일: (평일 운영시간) / 주말: (주말 운영시간)
-• 휴무: (휴무일 정보)
-• 특징: (핵심 차별점)
-• 가격: (가격 정보)
-
-
----
-## 최종 체크 (출력 전 확인 - 하나라도 위반 시 다시 작성)
-1. 선택된 글 스타일(${selectedStyle})에 맞게 작성했는가?
-2. 검색 의도(${SEARCH_INTENT_INFO[state.searchIntent].name})에 맞는 정보를 우선 배치했는가?
-3. 첫 문단에 인사말 없이 핵심부터 시작했는가?
-4. 제목을 본문에 복사하지 않았는가?
-5. FIRE 공식을 자연스러운 문장으로 녹여서 작성했는가? (레이블 없이)
-6. 계단식 구조(제목→대주제→소주제)가 명확한가?
-7. 유의어/연관어를 풍부하게 사용했는가?
-8. 업로드된 이미지 분석 결과를 본문에 반영했는가?
-9. ** 별표 두개(볼드 마크다운) 사용하지 않았는가? (절대 금지)
-10. (Fact), (fact), (Real), (Experience) 등 괄호 영어 표현 사용하지 않았는가? (절대 금지)
-11. 마크다운 문법과 이모지를 사용하지 않았는가?
-12. 각 섹션 사이에 ──────────────────────────────── 구분선을 추가했는가? (필수)
-13. 같은 키워드/업체명이 연속 반복되어 피로감을 주지 않는가?
-14. [이미지: 설명] 형식의 이미지 프롬프트가 10개 이상 포함되었는가?
-15. 이미지 설명이 구체적이고 본문 내용과 연결되어 있는가?
-
-모든 내용은 한국어로 작성하세요.
-【】 형식의 섹션 제목만 사용하세요.
-섹션 사이에 ──────────────────────────────── 구분선을 필수로 추가하세요.
-━━━ 같은 특수문자 구분선은 사용하지 마세요.`;
+  return `${imageContext}${basePrompt}`;
 }
 
-// 라이트 모드 프롬프트 (토큰 절약 - 약 80% 감소, 무료 API용 최적화)
 export function generate333PromptLite(state: AppState): string {
-  const attrs = Object.entries(state.attributes).slice(0, 5).map(([k, v]) => `${k}:${v}`).join(', ');
+  const contentState = appStateToContentState(state);
+  const basePrompt = generateFBAS2026PromptLite(contentState);
+  const analyzed = state.images.filter(img => img.analysis);
 
-  return `네이버 SEO 블로그 작성. 규칙: 마크다운/** 금지, 이모지 금지, 센터 대표자 시점, 【】섹션 제목 사용.
+  if (analyzed.length === 0) return basePrompt;
 
-업체: ${state.businessName} (${state.category})
-키워드: ${state.mainKeyword}
-${attrs ? `정보: ${attrs}` : ''}
-${state.customTitle ? `제목: ${state.customTitle}` : ''}
+  // 라이트 모드에서는 간결하게
+  const imageLines = analyzed.map((img, idx) =>
+    `[사진${idx + 1}] ${img.analysis?.slice(0, 200) || ''}`
+  ).join('\n');
 
-출력형식:
-${state.customTitle ? `【제목】${state.customTitle}` : '【제목】(키워드+수치 조합)'}
-────
-【본문】인사말 없이 핵심부터. 시설/프로그램/가격 소개. [이미지: 설명] 5개 포함.
-────
-【FAQ】Q&A 3개
-────
-【요약】위치/시간/특징 정리
-
-1500자 이상 작성.`;
+  return `【사진분석】\n${imageLines}\n\n${basePrompt}`;
 }
 
-export function generateModifyPrompt(originalContent: string, userRequest: string): string {
-  return `당신은 블로그 글 수정 전문가입니다. 기존 글을 사용자 요청에 맞게 수정해주세요.
+// PRO 기능: 상위노출 블로그 학습 컨텍스트
+export function generateTopBlogsLearningContext(learningResult: LearningResult | null): string {
+  if (!learningResult || learningResult.successfulBlogs === 0) {
+    return '';
+  }
 
-## 기존 블로그 글:
+  const { analysis, blogs } = learningResult;
 
-${originalContent}
+  let context = `
+────────────────────────────────
+【PRO 기능】 "${learningResult.keyword}" 상위노출 블로그 ${learningResult.successfulBlogs}개 분석 결과
+────────────────────────────────
 
----
+상위노출 블로그 평균 통계:
+- 평균 글자수: ${analysis.avgWordCount.toLocaleString()}자 (이 정도 분량으로 작성 필요)
+- 평균 섹션 수: ${analysis.avgSections}개
+- 평균 이미지 수: ${analysis.avgImages}개
 
-## 사용자 수정 요청: ${userRequest}
+상위노출 제목 패턴: ${analysis.titlePatterns.join(', ') || '일반형'}
+상위노출 글의 공통 구조: ${analysis.commonStructures.join(', ') || '자유 형식'}
 
----
+`;
 
-## 필수 수정 규칙:
+  context += `【상위 블로그 구조 참고】\n`;
+  blogs.slice(0, 3).forEach((blog, idx) => {
+    context += `
+${idx + 1}. "${blog.title}"
+   - 글자수: ${blog.wordCount.toLocaleString()}자
+   - 섹션: ${blog.structure.sectionCount}개
+   - 이미지: ${blog.structure.imageCount}개
+   - FAQ 포함: ${blog.structure.hasFAQ ? '예' : '아니오'}
+   - 가격표 포함: ${blog.structure.hasTable ? '예' : '아니오'}
+   - 관련 키워드: ${blog.keywords.slice(0, 5).join(', ')}
+`;
+  });
 
-### 1. 이미지 프롬프트 유지 (매우 중요)
-- 기존 글에 있는 [이미지: ...] 형식을 모두 유지해야 합니다
-- 수정 후에도 본문 내용에 맞는 이미지 프롬프트가 10개 이상 포함되어야 합니다
-- 이미지 설명은 본문 내용과 직접 연관되게 구체적으로 작성
-- 예: [이미지: 넓은 유산소 존에서 러닝머신을 이용하는 회원 모습]
+  context += `
+────────────────────────────────
+중요: 위 분석 결과를 참고하되, 표절이 아닌 완전히 새롭고 독창적인 콘텐츠를 작성하세요.
+────────────────────────────────
 
-### 2. 구분선 추가 (필수)
-- 각 【섹션】 사이에 반드시 아래 형식의 구분선을 추가하세요:
+`;
+
+  return context;
+}
+
+export function generate333PromptWithLearning(state: AppState): string {
+  const basePrompt = generate333Prompt(state);
+  const learningContext = generateTopBlogsLearningContext(state.topBlogsLearning);
+
+  if (!learningContext) {
+    return basePrompt;
+  }
+
+  return `${learningContext}
+
+위 상위노출 분석 결과를 참고하여 아래 요청대로 블로그 글을 작성해주세요.
 
 ────────────────────────────────
 
-- 이 구분선은 네이버 블로그 붙여넣기 시 섹션 구분을 위해 필수입니다
-
-### 3. 절대 금지 사항 (위반 시 전체 다시 작성)
-- (Fact), (fact), (Real), (Experience), (Interpretation) 등 영어 괄호 레이블 절대 금지
-- (Real & Experience), (F), (I), (R), (E) 등 FIRE 약자 표기 절대 금지
-- ** 볼드 마크다운 절대 금지
-- # ## ### 헤딩 마크다운 절대 금지
-- 이모지 절대 금지
-- ━━━ 특수 구분선 금지 (위의 ──── 형식만 사용)
-
-### 4. 형식 유지
-- 【】 형식의 섹션 제목 유지
-- 각 섹션 사이에 구분선과 빈 줄 추가
-- 네이버 블로그에 바로 붙여넣기 가능한 형태로 작성
-
-### 5. 전체 글 출력
-- 수정된 전체 글을 처음부터 끝까지 출력하세요
-- 일부만 출력하지 말고 전체를 출력하세요
-
-모든 내용은 순수 한글로만 작성하세요.
-FIRE 공식의 내용은 자연스러운 문장으로 녹여서 작성하고, 괄호 레이블은 절대 사용하지 마세요.`;
+${basePrompt}`;
 }
+
+// ============================================================
+// Export
+// ============================================================
+
+export default {
+  generateFBAS2026Prompt,
+  generateFBAS2026PromptLite,
+  generateModifyPrompt,
+  generate333Prompt,
+  generate333PromptLite,
+  generate333PromptWithLearning,
+  CONTENT_TYPE_INFO,
+  PERSPECTIVE_GUIDE,
+};
