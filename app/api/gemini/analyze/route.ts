@@ -76,9 +76,7 @@ ${businessContext}${userContext}
     // 모델 목록 (각 모델은 별도 rate limit quota를 가짐)
     // 429 시 같은 모델 재시도 대신 다음 모델로 즉시 전환
     const models = [
-      'gemini-2.0-flash',
       'gemini-2.5-flash',
-      'gemini-1.5-flash-latest',
     ];
     let lastError = '';
     let allRateLimited = true;

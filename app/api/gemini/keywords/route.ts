@@ -52,7 +52,7 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
    - 이미지에서 발견된 텍스트, 브랜드, 인물, 상품 등을 키워드와 제목에 적극 반영하세요.
    - 업체 정보는 보조적으로 활용하고, 이미지와 기획 의도가 핵심입니다.` : ''}`;
 
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest'];
+    const models = ['gemini-2.5-flash'];
     let lastError = '';
 
     for (const model of models) {

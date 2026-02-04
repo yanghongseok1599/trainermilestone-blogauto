@@ -113,9 +113,7 @@ ${prompt}`;
     const maxOutputTokens = liteMode ? 4096 : optimizedMode ? 6144 : 8192;
 
     // Free tier models - 토큰 절약 모드에서는 flash만 사용
-    const models = isTokenSavingMode
-      ? ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest']
-      : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro'];
+    const models = ['gemini-2.5-flash'];
 
     let lastError = '';
     let isQuotaError = false;
