@@ -16,7 +16,7 @@ import { AuthGuard } from '@/components/auth-guard';
 import { useAuth } from '@/lib/auth-context';
 import { getUserSubscription } from '@/lib/payment-service';
 import { PLANS, type UserSubscription } from '@/types/payment';
-import { loadApiSettings, saveApiSettings } from '@/lib/firestore-service';
+import { saveApiSettings } from '@/lib/firestore-service';
 
 type ApiProvider = 'openai' | 'gemini';
 type ApiKeyMode = 'own' | 'site'; // 자기 키 vs 사이트 키
@@ -62,7 +62,7 @@ function ImageGeneratorContent() {
 
   const currentModels = apiProvider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
 
-  // 구독 정보 + 저장된 API 키 로드
+  // 구독 정보 로드 (이미지 생성기는 기본적으로 사이트 API 사용)
   useEffect(() => {
     const loadUserData = async () => {
       if (user) {
@@ -72,21 +72,10 @@ function ImageGeneratorContent() {
         } catch (error) {
           console.error('Failed to load subscription:', error);
         }
-        // Firestore에서 저장된 API 키 로드
-        try {
-          const settings = await loadApiSettings(user.uid);
-          if (settings?.apiKey) {
-            setUserApiKey(settings.apiKey);
-            setApiKey(settings.apiKey);
-            setApiKeyMode('own');
-          }
-        } catch (error) {
-          console.error('Failed to load API settings:', error);
-        }
       }
     };
     loadUserData();
-  }, [user, setUserApiKey]);
+  }, [user]);
 
   // 사이트 API 사용 시 플랜 제한 정보
   const planInfo = subscription ? PLANS[subscription.currentPlan] : PLANS.FREE;
