@@ -3,7 +3,7 @@ import { PLANS, SubscriptionPlan } from '@/types/payment';
 import { FieldValue } from 'firebase-admin/firestore';
 
 // 무료 모델 ID 목록
-const FREE_MODELS = ['gemini-2.5-flash-preview-04-17'];
+const FREE_MODELS = ['gemini-2.5-flash-image'];
 
 // 관리자 userId (무제한 이용)
 const ADMIN_USER_ID = 'admin-ccv5';

@@ -12,13 +12,13 @@ const IMAGEN_MODELS = [
 
 // Gemini 이미지 생성 모델 목록
 const GEMINI_IMAGE_MODELS = [
-  'gemini-2.5-flash-preview-04-17',
+  'gemini-2.5-flash-image',
 ];
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { apiKey, useSiteApi, userId, prompt, model = 'gemini-2.5-flash-preview-04-17' } = body;
+    const { apiKey, useSiteApi, userId, prompt, model = 'gemini-2.5-flash-image' } = body;
 
     // 사이트 API 또는 사용자 API 키 결정
     let resolvedApiKey = apiKey;

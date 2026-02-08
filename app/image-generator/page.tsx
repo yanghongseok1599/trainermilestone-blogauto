@@ -29,14 +29,14 @@ const OPENAI_MODELS = [
 ];
 
 const GEMINI_MODELS = [
-  { id: 'gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash (최신)', description: '빠르고 고품질 이미지 생성 (무료)', free: true },
+  { id: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash (최신)', description: '빠르고 고품질 이미지 생성 (무료)', free: true },
   { id: 'imagen-3.0-generate-002', name: 'Imagen 3 (최신)', description: 'Google 최신 이미지 생성 모델', free: false },
   { id: 'imagen-3.0-generate-001', name: 'Imagen 3', description: 'Google 고품질 이미지 생성', free: false },
   { id: 'imagen-3.0-fast-generate-001', name: 'Imagen 3 Fast', description: '빠른 생성, 낮은 비용', free: false },
 ];
 
 // 무료 모델 ID 목록 (사이트 API 사용 시 플랜 제한 미적용)
-const FREE_MODELS = ['gemini-2.5-flash-preview-04-17'];
+const FREE_MODELS = ['gemini-2.5-flash-image'];
 
 interface ImageWithGeneration extends ParsedImagePrompt {
   generatedUrl?: string;
@@ -103,7 +103,7 @@ function ImageGeneratorContent() {
   useEffect(() => {
     if (storeApiProvider === 'openai' || storeApiProvider === 'gemini') {
       setApiProvider(storeApiProvider as ApiProvider);
-      setSelectedModel(storeApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-preview-04-17');
+      setSelectedModel(storeApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image');
     }
   }, [storeApiProvider]);
 
@@ -452,7 +452,7 @@ function ImageGeneratorContent() {
                   size="sm"
                   onClick={() => {
                     setApiProvider('gemini');
-                    setSelectedModel('gemini-2.5-flash-preview-04-17');
+                    setSelectedModel('gemini-2.5-flash-image');
                     if (apiKeyMode === 'own') setApiKey('');
                   }}
                   className={apiProvider === 'gemini'
