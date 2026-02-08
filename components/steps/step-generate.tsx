@@ -500,6 +500,12 @@ export function StepGenerate() {
               <p className="text-xs text-[#9ca3af]">이미지</p>
               <p className="font-medium text-[#111111]">{store.images.length}장 업로드</p>
             </div>
+            {store.referenceText.trim() && (
+              <div className="space-y-1">
+                <p className="text-xs text-[#9ca3af]">참고 글</p>
+                <p className="font-medium text-[#111111]">{store.referenceText.length.toLocaleString()}자 입력됨</p>
+              </div>
+            )}
           </div>
         </div>
 

@@ -16,11 +16,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTriangle, Info } from 'lucide-react';
+import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTriangle, Info, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
-import { loadApiSettings } from '@/lib/firestore-service';
+import { loadApiSettings, saveReferenceText, loadReferenceText } from '@/lib/firestore-service';
 
 /**
  * 이미지를 Canvas로 리사이즈 & 압축하여 base64 반환
@@ -58,7 +58,7 @@ function compressImage(file: File, maxSize = 1200, quality = 0.7): Promise<{ dat
 }
 
 export function StepImageUpload() {
-  const { images, apiProvider, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customCategoryName, userApiKey, setUserApiKey, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCurrentStep, setSubKeywords, setTailKeywords, setCustomTitle } = useAppStore();
+  const { images, apiProvider, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customCategoryName, userApiKey, setUserApiKey, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCurrentStep, setSubKeywords, setTailKeywords, setCustomTitle, referenceText, setReferenceText } = useAppStore();
   const { user, getAuthHeaders } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -78,6 +78,28 @@ export function StepImageUpload() {
     };
     loadKey();
   }, [user, userApiKey, setUserApiKey]);
+
+  // Firestore에서 참고 글 로드
+  useEffect(() => {
+    const loadRef = async () => {
+      if (user && !referenceText) {
+        try {
+          const text = await loadReferenceText(user.uid);
+          if (text) setReferenceText(text);
+        } catch { /* ignore */ }
+      }
+    };
+    loadRef();
+  }, [user, referenceText, setReferenceText]);
+
+  // 참고 글 저장 (onBlur)
+  const handleReferenceTextBlur = useCallback(async () => {
+    if (user && referenceText.trim()) {
+      try {
+        await saveReferenceText(user.uid, referenceText);
+      } catch { /* ignore */ }
+    }
+  }, [user, referenceText]);
 
   // 분석되지 않은 이미지가 있는지 확인
   const hasUnanalyzedImages = images.length > 0 && images.some(img => !img.analysis);
@@ -277,12 +299,39 @@ export function StepImageUpload() {
           <div className="p-2 rounded-lg bg-[#f72c5b]/10 text-[#f72c5b]">
             <ImageIcon className="w-5 h-5" />
           </div>
-          <CardTitle className="text-xl">이미지 업로드 및 AI 분석</CardTitle>
+          <CardTitle className="text-xl">글 붙여넣기 & 이미지 분석</CardTitle>
         </div>
-        <CardDescription className="text-base">업로드된 이미지를 AI가 분석하여 문맥 일치도를 자동으로 맞춰드립니다</CardDescription>
+        <CardDescription className="text-base">참고 글과 이미지를 AI가 분석하여 최적의 블로그 글을 작성합니다</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-6">
+        {/* 글 붙여넣기 섹션 */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-[#f72c5b]" />
+            <p className="text-sm font-medium text-[#111111]">글 붙여넣기 <span className="text-xs text-[#9ca3af]">(선택사항)</span></p>
+          </div>
+          <Textarea
+            value={referenceText}
+            onChange={(e) => setReferenceText(e.target.value.slice(0, 10000))}
+            onBlur={handleReferenceTextBlur}
+            placeholder="참고하고 싶은 블로그 글을 붙여넣으세요. AI가 글의 구조와 흐름을 분석하여 비슷한 스타일로 새 글을 작성합니다."
+            className="min-h-[120px] bg-white text-sm resize-none border-[#eeeeee] focus:border-[#f72c5b]"
+          />
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[#9ca3af]">
+              구조와 문체만 참고하며, 내용은 입력한 업체 정보로 새로 작성됩니다
+            </p>
+            <p className="text-xs text-[#9ca3af]">{referenceText.length.toLocaleString()} / 10,000자</p>
+          </div>
+        </div>
+
+        {/* 구분선 */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-[#eeeeee]" /></div>
+          <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-[#9ca3af]">이미지 분석</span></div>
+        </div>
+
         {/* Upload Zone - Optional */}
         <div className="space-y-2">
           <p className="text-sm font-medium text-[#6b7280] flex items-center gap-2">

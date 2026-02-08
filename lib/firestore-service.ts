@@ -155,3 +155,24 @@ export async function loadApiSettings(userId: string): Promise<{ apiProvider: st
   }
   return null;
 }
+
+// Save reference text (참고 글)
+export async function saveReferenceText(userId: string, text: string): Promise<void> {
+  if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
+  const docRef = doc(db, 'users', userId, 'settings', 'referenceText');
+  await setDoc(docRef, {
+    text: text.slice(0, 10000),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// Load reference text (참고 글)
+export async function loadReferenceText(userId: string): Promise<string> {
+  if (!db) return '';
+  const docRef = doc(db, 'users', userId, 'settings', 'referenceText');
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    return docSnap.data().text || '';
+  }
+  return '';
+}

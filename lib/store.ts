@@ -17,6 +17,7 @@ const initialState = {
   customAttributes: [] as string[],
   attributeLabels: {} as Record<string, string>, // 라벨 수정용
   hiddenAttributes: [] as string[], // 삭제(숨김) 처리된 기본 속성
+  referenceText: '',
   images: [] as ImageData[],
   imageAnalysisContext: '',
   generatedContent: '',
@@ -105,6 +106,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       img.id === id ? { ...img, analysis, ...(analysisJson && { analysisJson }) } : img
     )
   })),
+  setReferenceText: (text) => set({ referenceText: text }),
   setImageAnalysisContext: (context) => set({ imageAnalysisContext: context }),
 
   setGeneratedContent: (content) => set({ generatedContent: content }),

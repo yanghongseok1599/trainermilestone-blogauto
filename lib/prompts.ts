@@ -754,6 +754,42 @@ ${originalContent}
 }
 
 // ============================================================
+// 참고 글 컨텍스트
+// ============================================================
+
+function buildReferenceTextContext(referenceText: string, lite = false): string {
+  if (!referenceText || !referenceText.trim()) return '';
+
+  const maxLen = lite ? 2000 : 5000;
+  const truncated = referenceText.trim().slice(0, maxLen);
+
+  if (lite) {
+    return `【참고글】아래 글의 구조만 참고하여 새 글 작성. 내용 복사 금지.\n${truncated}\n\n`;
+  }
+
+  return `──────────────────────────────────
+【참고 글 구조 분석】
+──────────────────────────────────
+아래는 사용자가 참고하고 싶어하는 블로그 글입니다.
+이 글의 "구조와 흐름"을 분석하여 새 글 작성에 반영하세요.
+
+[참고 글 원문]
+${truncated}
+${referenceText.length > maxLen ? '\n(이하 생략...)' : ''}
+
+──────────────────────────────────
+【참고 글 활용 규칙】
+──────────────────────────────────
+1. 구조만 참고: 섹션 배치, 흐름(도입→본문→마무리 순서), 문단 길이 패턴을 분석하여 비슷하게 구성
+2. 내용은 새로 작성: 참고 글의 구체적 사실(가격, 위치, 이름, 후기 등)은 절대 복사하지 마세요
+3. 사용자의 업체 정보로 대체: 아래 【입력된 사실 정보】와 【기본 정보】만을 사실로 사용
+4. 문체 참고 가능: 종결어미 패턴, 대화체 비율 등은 참고하되, 동일한 문장 사용 금지
+5. 사실성 가드레일 우선: 참고 글에 있는 수치/주장이라도 facts에 없으면 작성 금지
+──────────────────────────────────
+`;
+}
+
+// ============================================================
 // 통합 함수들
 // ============================================================
 
@@ -761,19 +797,32 @@ export function generate333Prompt(state: AppState): string {
   const contentState = appStateToContentState(state);
   const basePrompt = generateFBAS2026Prompt(contentState);
   const imageContext = buildImageAnalysisContext(state);
-  if (!imageContext) return basePrompt;
-  return `${imageContext}${basePrompt}`;
+  const referenceContext = buildReferenceTextContext(state.referenceText);
+
+  const parts = [referenceContext, imageContext, basePrompt].filter(Boolean);
+  return parts.join('\n');
 }
 
 export function generate333PromptLite(state: AppState): string {
   const contentState = appStateToContentState(state);
   const basePrompt = generateFBAS2026PromptLite(contentState);
+  const referenceContext = buildReferenceTextContext(state.referenceText, true);
   const analyzed = state.images.filter(img => img.analysis);
-  if (analyzed.length === 0) return basePrompt;
-  const imageLines = analyzed.map((img, idx) =>
-    `[사진${idx + 1}] ${img.analysis?.slice(0, 200) || ''}`
-  ).join('\n');
-  return `【사진분석】\n${imageLines}\n\n${basePrompt}`;
+
+  let result = basePrompt;
+
+  if (analyzed.length > 0) {
+    const imageLines = analyzed.map((img, idx) =>
+      `[사진${idx + 1}] ${img.analysis?.slice(0, 200) || ''}`
+    ).join('\n');
+    result = `【사진분석】\n${imageLines}\n\n${result}`;
+  }
+
+  if (referenceContext) {
+    result = `${referenceContext}${result}`;
+  }
+
+  return result;
 }
 
 // PRO 기능: 상위노출 블로그 학습 컨텍스트

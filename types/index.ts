@@ -136,6 +136,10 @@ export interface AppState {
   setHiddenAttributes: (attrs: string[]) => void;
   setAttributeLabels: (labels: Record<string, string>) => void;
 
+  // 참고 글 (글 붙여넣기)
+  referenceText: string;
+  setReferenceText: (text: string) => void;
+
   // 이미지
   images: ImageData[];
   imageAnalysisContext: string;
