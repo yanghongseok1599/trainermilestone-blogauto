@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTr
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
+import { loadApiSettings } from '@/lib/firestore-service';
 
 /**
  * 이미지를 Canvas로 리사이즈 & 압축하여 base64 반환
@@ -57,11 +58,26 @@ function compressImage(file: File, maxSize = 1200, quality = 0.7): Promise<{ dat
 }
 
 export function StepImageUpload() {
-  const { images, apiProvider, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customCategoryName, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCurrentStep, setSubKeywords, setTailKeywords, setCustomTitle } = useAppStore();
+  const { images, apiProvider, category, businessName, mainKeyword, targetAudience, uniquePoint, imageAnalysisContext, customCategoryName, userApiKey, setUserApiKey, addImage, removeImage, updateImageAnalysis, setImageAnalysisContext, setCurrentStep, setSubKeywords, setTailKeywords, setCustomTitle } = useAppStore();
   const { user, getAuthHeaders } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
+
+  // Firestore에서 저장된 API 키 로드
+  useEffect(() => {
+    const loadKey = async () => {
+      if (user && !userApiKey) {
+        try {
+          const settings = await loadApiSettings(user.uid);
+          if (settings?.apiKey) {
+            setUserApiKey(settings.apiKey);
+          }
+        } catch { /* ignore */ }
+      }
+    };
+    loadKey();
+  }, [user, userApiKey, setUserApiKey]);
 
   // 분석되지 않은 이미지가 있는지 확인
   const hasUnanalyzedImages = images.length > 0 && images.some(img => !img.analysis);
@@ -113,15 +129,15 @@ export function StepImageUpload() {
     setIsAnalyzing(true);
     toast.info('이미지 분석을 시작합니다...');
 
-    // 팀 멤버인 경우 팀 소유자의 API 키 가져오기
-    let teamApiKey = '';
-    if (user) {
+    // API 키 결정: 개인 키 > 팀 소유자 키 > 사이트 키
+    let resolvedApiKey = userApiKey || '';
+    if (!resolvedApiKey && user) {
       try {
         const membership = await getMyTeamMembership(user.uid);
         if (membership) {
           const ownerSettings = await getTeamOwnerApiSettings(membership.ownerId);
           if (ownerSettings?.apiKey) {
-            teamApiKey = ownerSettings.apiKey;
+            resolvedApiKey = ownerSettings.apiKey;
           }
         }
       } catch (teamError) {
@@ -165,7 +181,7 @@ export function StepImageUpload() {
                 uniquePoint,
               },
               context: imageAnalysisContext,
-              ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+              ...(resolvedApiKey ? { apiKey: resolvedApiKey } : {}),
             }),
           });
 

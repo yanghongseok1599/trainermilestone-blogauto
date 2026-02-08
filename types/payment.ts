@@ -34,7 +34,6 @@ export interface PlanInfo {
   presetLimit: number;         // 프리셋 저장 제한
   imageLimit: number;          // 이미지 분석 제한
   imageGenerationLimit: number;      // 월 이미지 생성 제한 (유료 모델)
-  dailyImageGenerationLimit: number; // 일일 이미지 생성 제한 (전체)
   dailyPaidImageGenerationLimit: number; // 일일 유료 모델 이미지 생성 제한
   tokenLimit: number;          // 월 토큰 제한
   dailyTokenLimit: number;     // 일일 토큰 제한
@@ -61,7 +60,6 @@ export const PLANS: Record<SubscriptionPlan, PlanInfo> = {
     presetLimit: 3,
     imageLimit: 3,
     imageGenerationLimit: 0,
-    dailyImageGenerationLimit: 0,
     dailyPaidImageGenerationLimit: 0,
     tokenLimit: 50000,
     dailyTokenLimit: 10000,
@@ -87,7 +85,6 @@ export const PLANS: Record<SubscriptionPlan, PlanInfo> = {
     presetLimit: 10,
     imageLimit: 20,
     imageGenerationLimit: 50,
-    dailyImageGenerationLimit: 5,
     dailyPaidImageGenerationLimit: 5,
     tokenLimit: 300000,
     dailyTokenLimit: 30000,
@@ -115,7 +112,6 @@ export const PLANS: Record<SubscriptionPlan, PlanInfo> = {
     presetLimit: -1,
     imageLimit: -1,
     imageGenerationLimit: 200,
-    dailyImageGenerationLimit: 30,
     dailyPaidImageGenerationLimit: 5,
     tokenLimit: 1000000,
     dailyTokenLimit: 100000,
@@ -142,7 +138,6 @@ export const PLANS: Record<SubscriptionPlan, PlanInfo> = {
     presetLimit: -1,
     imageLimit: -1,
     imageGenerationLimit: 500,
-    dailyImageGenerationLimit: 50,
     dailyPaidImageGenerationLimit: 10,
     tokenLimit: 3000000,
     dailyTokenLimit: 300000,
@@ -170,7 +165,6 @@ export const PLANS: Record<SubscriptionPlan, PlanInfo> = {
     presetLimit: -1,
     imageLimit: -1,
     imageGenerationLimit: 30,
-    dailyImageGenerationLimit: 6,
     dailyPaidImageGenerationLimit: 2,
     tokenLimit: 1000000,
     dailyTokenLimit: 100000,
@@ -222,7 +216,6 @@ export interface UserSubscription {
   blogCount: number;             // 이번 달 블로그 생성 횟수
   imageAnalysisCount: number;    // 이번 달 이미지 분석 횟수
   imageGenerationCount: number;       // 이번 달 유료 이미지 생성 횟수
-  dailyImageGenerationCount: number;  // 오늘 전체 이미지 생성 횟수
   dailyPaidImageGenerationCount: number; // 오늘 유료 모델 이미지 생성 횟수
   dailyImageGenerationResetDate: Date; // 일일 이미지 생성 리셋 날짜
   tokenUsage: number;            // 이번 달 토큰 사용량

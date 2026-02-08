@@ -16,6 +16,7 @@ import { AuthGuard } from '@/components/auth-guard';
 import { useAuth } from '@/lib/auth-context';
 import { getUserSubscription } from '@/lib/payment-service';
 import { PLANS, type UserSubscription } from '@/types/payment';
+import { loadApiSettings, saveApiSettings } from '@/lib/firestore-service';
 
 type ApiProvider = 'openai' | 'gemini';
 type ApiKeyMode = 'own' | 'site'; // 자기 키 vs 사이트 키
@@ -46,7 +47,7 @@ interface ImageWithGeneration extends ParsedImagePrompt {
 function ImageGeneratorContent() {
   const searchParams = useSearchParams();
   const { user, getAuthHeaders } = useAuth();
-  const { extractedImagePrompts, category: storeCategory, setExtractedImagePrompts, apiProvider: storeApiProvider } = useAppStore();
+  const { extractedImagePrompts, category: storeCategory, setExtractedImagePrompts, apiProvider: storeApiProvider, userApiKey, setUserApiKey } = useAppStore();
   const [inputPrompt, setInputPrompt] = useState('');
   const [category, setCategory] = useState('');
   const [parsedImages, setParsedImages] = useState<ImageWithGeneration[]>([]);
@@ -61,9 +62,9 @@ function ImageGeneratorContent() {
 
   const currentModels = apiProvider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
 
-  // 구독 정보 로드
+  // 구독 정보 + 저장된 API 키 로드
   useEffect(() => {
-    const loadSub = async () => {
+    const loadUserData = async () => {
       if (user) {
         try {
           const sub = await getUserSubscription(user.uid);
@@ -71,21 +72,29 @@ function ImageGeneratorContent() {
         } catch (error) {
           console.error('Failed to load subscription:', error);
         }
+        // Firestore에서 저장된 API 키 로드
+        try {
+          const settings = await loadApiSettings(user.uid);
+          if (settings?.apiKey) {
+            setUserApiKey(settings.apiKey);
+            setApiKey(settings.apiKey);
+            setApiKeyMode('own');
+          }
+        } catch (error) {
+          console.error('Failed to load API settings:', error);
+        }
       }
     };
-    loadSub();
-  }, [user]);
+    loadUserData();
+  }, [user, setUserApiKey]);
 
   // 사이트 API 사용 시 플랜 제한 정보
   const planInfo = subscription ? PLANS[subscription.currentPlan] : PLANS.FREE;
   const imageGenLimit = planInfo.imageGenerationLimit;
-  const dailyImageGenLimit = planInfo.dailyImageGenerationLimit;
   const dailyPaidImageGenLimit = planInfo.dailyPaidImageGenerationLimit;
   const usedCount = subscription?.imageGenerationCount ?? 0;
-  const dailyUsedCount = subscription?.dailyImageGenerationCount ?? 0;
   const dailyPaidUsedCount = subscription?.dailyPaidImageGenerationCount ?? 0;
   const canUsePaidModel = imageGenLimit > 0 && usedCount < imageGenLimit && dailyPaidUsedCount < dailyPaidImageGenLimit;
-  const canUseFreeModel = dailyImageGenLimit > 0 && dailyUsedCount < dailyImageGenLimit;
 
   // URL 파라미터에서 프롬프트 로드 (리믹스 기능)
   useEffect(() => {
@@ -151,7 +160,7 @@ function ImageGeneratorContent() {
     const parsed = parseImagePrompts(inputPrompt, category);
 
     if (parsed.length === 0) {
-      toast.error('[이미지: 설명] 형식의 프롬프트를 찾을 수 없습니다');
+      toast.error('프롬프트를 분석할 수 없습니다. 텍스트를 입력해주세요.');
       return;
     }
 
@@ -169,23 +178,15 @@ function ImageGeneratorContent() {
     }
 
     // 사이트 API 모드일 때 한도 확인
-    if (apiKeyMode === 'site') {
-      if (isFreeModel) {
-        // 무료 모델: 전체 일일 한도 체크
-        if (!canUseFreeModel) {
-          toast.error(`일일 이미지 생성 한도(${dailyImageGenLimit}장)를 초과했습니다.`);
-          return;
-        }
-      } else {
-        // 유료 모델: 유료 일일 한도 + 월 한도 체크
-        if (imageGenLimit === 0) {
-          toast.error('현재 플랜에서는 유료 모델의 사이트 API 사용이 지원되지 않습니다. Gemini 2.5 Flash(무료)를 사용하거나 직접 API 키를 입력해주세요.');
-          return;
-        }
-        if (!canUsePaidModel) {
-          toast.error(`유료 모델 일일 한도(${dailyPaidImageGenLimit}장)를 초과했습니다. Gemini 2.5 Flash(무료)를 사용하거나 직접 API 키를 입력해주세요.`);
-          return;
-        }
+    if (apiKeyMode === 'site' && !isFreeModel) {
+      // 유료 모델: 유료 일일 한도 + 월 한도 체크
+      if (imageGenLimit === 0) {
+        toast.error('현재 플랜에서는 유료 모델의 사이트 API 사용이 지원되지 않습니다. Gemini 2.5 Flash(무료)를 사용하거나 직접 API 키를 입력해주세요.');
+        return;
+      }
+      if (!canUsePaidModel) {
+        toast.error(`유료 모델 일일 한도(${dailyPaidImageGenLimit}장)를 초과했습니다. Gemini 2.5 Flash(무료)를 사용하거나 직접 API 키를 입력해주세요.`);
+        return;
       }
     }
 
@@ -236,19 +237,14 @@ function ImageGeneratorContent() {
       ));
 
       // 사이트 API 사용 시 카운트 업데이트
-      if (apiKeyMode === 'site' && subscription) {
+      if (apiKeyMode === 'site' && subscription && !isFreeModel) {
         setSubscription(prev => {
           if (!prev) return prev;
-          const updated = {
+          return {
             ...prev,
-            dailyImageGenerationCount: (prev.dailyImageGenerationCount ?? 0) + 1,
+            imageGenerationCount: (prev.imageGenerationCount ?? 0) + 1,
+            dailyPaidImageGenerationCount: (prev.dailyPaidImageGenerationCount ?? 0) + 1,
           };
-          if (!isFreeModel) {
-            // 유료 모델은 유료 카운트도 증가
-            updated.imageGenerationCount = (prev.imageGenerationCount ?? 0) + 1;
-            updated.dailyPaidImageGenerationCount = (prev.dailyPaidImageGenerationCount ?? 0) + 1;
-          }
-          return updated;
         });
       }
 
@@ -419,13 +415,7 @@ function ImageGeneratorContent() {
               <div className={`rounded-lg p-3 text-sm ${isFreeModel ? 'bg-[#03C75A]/10' : imageGenLimit > 0 ? 'bg-[#f72c5b]/10' : 'bg-red-50'}`}>
                 {isFreeModel ? (
                   <div className="text-[#03C75A]">
-                    <p className="font-medium mb-1">Gemini 2.5 Flash - 무료 모델</p>
-                    <div className="flex gap-4 text-xs">
-                      <span>오늘 전체: {dailyUsedCount}/{dailyImageGenLimit}장</span>
-                    </div>
-                    {!canUseFreeModel && (
-                      <p className="text-xs mt-1 text-red-500 font-medium">일일 한도 초과 - 내일 다시 이용하거나 플랜을 업그레이드하세요</p>
-                    )}
+                    <p className="font-medium mb-1">Gemini 2.5 Flash - 무료 모델 (무제한)</p>
                   </div>
                 ) : imageGenLimit > 0 ? (
                   <div className="text-[#f72c5b]">
@@ -433,7 +423,6 @@ function ImageGeneratorContent() {
                     <div className="flex gap-4 text-xs">
                       <span>월 사용량: {usedCount}/{imageGenLimit}장</span>
                       <span>오늘 유료: {dailyPaidUsedCount}/{dailyPaidImageGenLimit}장</span>
-                      <span>오늘 전체: {dailyUsedCount}/{dailyImageGenLimit}장</span>
                     </div>
                     {!canUsePaidModel && (
                       <p className="text-xs mt-1 text-red-500 font-medium">유료 모델 한도 초과 - Gemini 2.5 Flash(무료)를 사용하거나 플랜을 업그레이드하세요</p>
@@ -520,6 +509,15 @@ function ImageGeneratorContent() {
                     placeholder={apiProvider === 'openai' ? 'sk-...' : 'API 키 입력'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
+                    onBlur={async () => {
+                      if (apiKey.trim() && user) {
+                        setUserApiKey(apiKey.trim());
+                        try {
+                          await saveApiSettings(user.uid, apiProvider, apiKey.trim());
+                          toast.success('API 키가 저장되었습니다');
+                        } catch { /* ignore */ }
+                      }
+                    }}
                     className="flex-1 h-11 bg-white border-[#eeeeee] focus:border-[#f72c5b]"
                   />
                   {apiKey && (
@@ -597,7 +595,7 @@ function ImageGeneratorContent() {
               프롬프트 입력
             </CardTitle>
             <CardDescription>
-              블로그 자동화에서 생성된 글이나 [이미지: 설명] 형식이 포함된 텍스트를 붙여넣으세요
+              원하는 이미지를 한글로 자유롭게 입력하거나, [이미지: 설명] 형식의 텍스트를 붙여넣으세요
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -624,11 +622,11 @@ function ImageGeneratorContent() {
 
             {/* Text Input */}
             <Textarea
-              placeholder={`[이미지: 러닝머신 20대와 사이클 10대가 배치된 넓은 유산소 존]
-[이미지: PT 전문 트레이너가 회원에게 스쿼트 자세를 교정하는 모습]
-[이미지: 월 5만원부터 시작하는 3개월 등록 할인 가격표]
+              placeholder={`달리기 하는 20대 한국 여성
+헬스장에서 덤벨 운동하는 남자 트레이너
+필라테스 리포머 수업 받는 여자 회원
 
-위와 같은 형식으로 프롬프트를 입력하세요...`}
+또는 [이미지: 설명] 형식도 지원합니다`}
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
               className="min-h-[200px] bg-white border-[#eeeeee] focus:border-[#f72c5b] resize-none font-mono text-sm"
@@ -694,7 +692,7 @@ function ImageGeneratorContent() {
                     : 'bg-[#111111] hover:bg-[#3367d6] text-white'
                   }
                   onClick={generateAllImages}
-                  disabled={isGeneratingAll || generatingCount > 0 || (apiKeyMode === 'own' && !apiKey) || (apiKeyMode === 'site' && !isFreeModel && (!isFreeModel && !canUsePaidModel) || (isFreeModel && !canUseFreeModel))}
+                  disabled={isGeneratingAll || generatingCount > 0 || (apiKeyMode === 'own' && !apiKey) || (apiKeyMode === 'site' && !isFreeModel && !canUsePaidModel)}
                 >
                   {isGeneratingAll || generatingCount > 0 ? (
                     <>
@@ -789,7 +787,7 @@ function ImageGeneratorContent() {
                             : 'bg-[#111111] hover:bg-[#3367d6]'
                         }`}
                         onClick={() => generateImage(image.id)}
-                        disabled={image.isGenerating || (apiKeyMode === 'own' && !apiKey) || (apiKeyMode === 'site' && !isFreeModel && (!isFreeModel && !canUsePaidModel) || (isFreeModel && !canUseFreeModel))}
+                        disabled={image.isGenerating || (apiKeyMode === 'own' && !apiKey) || (apiKeyMode === 'site' && !isFreeModel && !canUsePaidModel)}
                       >
                         {image.isGenerating ? (
                           <>
@@ -850,19 +848,18 @@ function ImageGeneratorContent() {
                 <ImagePlus className="w-10 h-10 text-[#f72c5b]" />
               </div>
               <h3 className="text-xl font-semibold text-[#111111] mb-2">
-                프롬프트를 입력하세요
+                원하는 이미지를 설명하세요
               </h3>
               <p className="text-[#6b7280] mb-6 max-w-md mx-auto">
-                블로그 자동화에서 생성된 글을 위 입력창에 붙여넣고
-                <br />
-                "프롬프트 분석하기" 버튼을 클릭하세요
+                한글로 자유롭게 입력하면 AI가 영문 프롬프트로 자동 변환합니다
               </p>
               <div className="bg-[#f5f5f5] rounded-xl p-6 max-w-lg mx-auto text-left">
-                <h4 className="font-semibold text-[#111111] mb-3">지원하는 형식</h4>
+                <h4 className="font-semibold text-[#111111] mb-3">입력 예시</h4>
                 <ul className="text-sm text-[#6b7280] space-y-2">
-                  <li>• [이미지: 러닝머신 20대가 배치된 유산소 존]</li>
-                  <li>• [이미지: PT 트레이너가 회원을 지도하는 모습]</li>
-                  <li>• [이미지: 50평 규모의 프리웨이트 존]</li>
+                  <li>• 달리기 하는 20대 한국 여성</li>
+                  <li>• 헬스장에서 스쿼트 하는 남자 트레이너</li>
+                  <li>• 필라테스 리포머 수업 장면</li>
+                  <li className="text-[#9ca3af]">• [이미지: 설명] 형식도 지원</li>
                 </ul>
               </div>
             </CardContent>

@@ -99,6 +99,8 @@ export interface AppState {
   // API 설정
   apiProvider: ApiProvider;
   setApiProvider: (provider: ApiProvider) => void;
+  userApiKey: string;
+  setUserApiKey: (key: string) => void;
 
   // 업체 정보
   category: FitnessCategory;

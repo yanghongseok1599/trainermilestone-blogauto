@@ -143,19 +143,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Firebase가 초기화되지 않았습니다. .env.local 파일을 확인해주세요.');
     }
     try {
-      // Try popup first
+      // Try popup first (COOP header allows this)
       const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       await saveUserToFirestore(result.user);
       logActivity(result.user.uid, 'login', 'Google 로그인');
     } catch (error: unknown) {
       const firebaseError = error as { code?: string; message?: string };
-      console.error('Google sign in error:', firebaseError);
+      console.error('Google sign in error:', firebaseError.code, firebaseError.message);
 
-      // If popup blocked or failed, try redirect
+      // Popup failed for any reason → fall back to redirect
       if (firebaseError.code === 'auth/popup-blocked' ||
           firebaseError.code === 'auth/popup-closed-by-user' ||
-          firebaseError.code === 'auth/cancelled-popup-request') {
-        console.log('Popup blocked, trying redirect...');
+          firebaseError.code === 'auth/cancelled-popup-request' ||
+          firebaseError.code === 'auth/network-request-failed' ||
+          firebaseError.code === 'auth/internal-error') {
+        console.log('Popup failed, falling back to redirect...');
         await signInWithRedirect(auth, googleProvider);
         return;
       }
@@ -166,9 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (firebaseError.code === 'auth/operation-not-allowed') {
         throw new Error('Google 로그인이 활성화되지 않았습니다. Firebase Console > Authentication > Sign-in method에서 Google을 활성화해주세요.');
-      }
-      if (firebaseError.code === 'auth/internal-error') {
-        throw new Error('Firebase 인증 오류가 발생했습니다. Firebase Console 설정을 확인해주세요.');
       }
 
       throw new Error(firebaseError.message || 'Google 로그인에 실패했습니다.');

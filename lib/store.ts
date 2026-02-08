@@ -4,6 +4,7 @@ import { AppState, FitnessCategory, ApiProvider, ImageData, ImageAnalysisResult,
 const initialState = {
   currentStep: 0,
   apiProvider: 'gemini' as ApiProvider,
+  userApiKey: '',
   category: '헬스장' as FitnessCategory,
   businessName: '',
   mainKeyword: '',
@@ -37,6 +38,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentStep: (step) => set({ currentStep: step }),
 
   setApiProvider: (provider) => set({ apiProvider: provider }),
+  setUserApiKey: (key) => set({ userApiKey: key }),
   setCategory: (category) => set({ category, attributes: {}, ...(category !== '기타' && { customCategoryName: '' }) }),
   setCustomCategoryName: (name) => set({ customCategoryName: name }),
 

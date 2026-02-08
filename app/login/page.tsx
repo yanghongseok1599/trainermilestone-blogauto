@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -12,11 +12,18 @@ import { Loader2, Lock, ArrowLeft, User } from 'lucide-react';
 
 function LoginContent() {
   const router = useRouter();
-  const { signInWithGoogle, signInWithEmail, signInAsAdmin } = useAuth();
+  const { user, loading, signInWithGoogle, signInWithEmail, signInAsAdmin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // 이미 로그인된 상태면 대시보드로 이동 (redirect 복귀 시)
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();

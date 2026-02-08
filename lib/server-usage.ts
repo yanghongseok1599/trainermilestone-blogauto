@@ -32,7 +32,6 @@ async function getSubscription(userId: string): Promise<Record<string, any> | nu
       blogCount: 0,
       imageAnalysisCount: 0,
       imageGenerationCount: 0,
-      dailyImageGenerationCount: 0,
       dailyPaidImageGenerationCount: 0,
       dailyImageGenerationResetDate: now,
       tokenUsage: 0,
@@ -76,34 +75,17 @@ export async function checkAndIncrementImageUsage(
   const resetDate = sub.dailyImageGenerationResetDate?.toDate?.()
     ?? (sub.dailyImageGenerationResetDate ? new Date(sub.dailyImageGenerationResetDate) : null);
 
-  let dailyCount = sub.dailyImageGenerationCount || 0;
   let dailyPaidCount = sub.dailyPaidImageGenerationCount || 0;
   const needsReset = !resetDate || resetDate < today;
 
   if (needsReset) {
-    dailyCount = 0;
     dailyPaidCount = 0;
   }
 
   const docRef = db.doc(`users/${userId}/subscription/current`);
 
   if (isFreeModel) {
-    // 무료 모델: 전체 일일 한도만 체크
-    if (plan.dailyImageGenerationLimit > 0 && dailyCount >= plan.dailyImageGenerationLimit) {
-      return { allowed: false, reason: `일일 이미지 생성 한도(${plan.dailyImageGenerationLimit}장)를 초과했습니다` };
-    }
-
-    // 카운트 증가
-    const updateData: Record<string, unknown> = {
-      dailyImageGenerationCount: dailyCount + 1,
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-    if (needsReset) {
-      updateData.dailyImageGenerationResetDate = today;
-      updateData.dailyPaidImageGenerationCount = 0;
-    }
-    await docRef.update(updateData);
-
+    // 무료 모델: 제한 없음 (일일 합산 한도 제거됨)
     return { allowed: true };
   }
 
@@ -125,10 +107,9 @@ export async function checkAndIncrementImageUsage(
     return { allowed: false, reason: `일일 유료 모델 한도(${plan.dailyPaidImageGenerationLimit}장)를 초과했습니다` };
   }
 
-  // 카운트 증가 (유료: 월간 + 일일전체 + 일일유료)
+  // 카운트 증가 (유료: 월간 + 일일유료)
   const updateData: Record<string, unknown> = {
     imageGenerationCount: monthlyCount + 1,
-    dailyImageGenerationCount: dailyCount + 1,
     dailyPaidImageGenerationCount: dailyPaidCount + 1,
     updatedAt: FieldValue.serverTimestamp(),
   };

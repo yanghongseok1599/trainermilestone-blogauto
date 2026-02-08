@@ -325,5 +325,19 @@ export function parseImagePrompts(content: string, category: string = ''): Parse
     });
   }
 
+  // 형식 3: 자유형 한글 텍스트 (줄 단위로 각각 이미지 프롬프트로 변환)
+  if (matches.length === 0) {
+    const freeLines = content.split(/\n+/).map(l => l.replace(/^\d+[\.\)]\s*/, '').trim()).filter(l => l.length >= 2);
+    freeLines.forEach((line, idx) => {
+      const english = generateEnglishPrompt(line, category);
+      matches.push({
+        id: `img-${idx}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        korean: line,
+        english,
+        index: idx,
+      });
+    });
+  }
+
   return matches;
 }

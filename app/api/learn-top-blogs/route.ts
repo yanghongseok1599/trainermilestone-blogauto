@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
 }
 
 // 학습 결과를 프롬프트용 컨텍스트로 변환
-export function generateLearningContext(result: LearningResult): string {
+function generateLearningContext(result: LearningResult): string {
   if (result.successfulBlogs === 0) {
     return '';
   }

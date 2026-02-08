@@ -19,6 +19,7 @@ import { generateRagContext, generateSimpleRagContext } from '@/lib/embedding-se
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { validateGeneratedContent } from '@/lib/post-validate';
 import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
+import { loadApiSettings, saveApiSettings } from '@/lib/firestore-service';
 
 const FEATURES = [
   { name: '333법칙', color: 'bg-[#f72c5b]/10 text-[#f72c5b] border-[#f72c5b]/30' },
@@ -172,6 +173,21 @@ export function StepGenerate() {
   const [showQuotaError, setShowQuotaError] = useState(false);
   const keywordGenRef = useRef(false);
 
+  // Firestore에서 저장된 API 키 로드
+  useEffect(() => {
+    const loadKey = async () => {
+      if (user && !store.userApiKey) {
+        try {
+          const settings = await loadApiSettings(user.uid);
+          if (settings?.apiKey) {
+            store.setUserApiKey(settings.apiKey);
+          }
+        } catch { /* ignore */ }
+      }
+    };
+    loadKey();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 페르소나 & 타겟 추천
   const personaTargetRec = useMemo(() => {
     return getPersonaTargetRecommendation(store.category, store.targetAudience);
@@ -183,13 +199,14 @@ export function StepGenerate() {
 
     setIsGeneratingKeywords(true);
     try {
-      let teamApiKey = '';
-      if (user) {
+      // API 키 결정: 개인 키 > 팀 소유자 키
+      let resolvedApiKey = store.userApiKey || '';
+      if (!resolvedApiKey && user) {
         try {
           const membership = await getMyTeamMembership(user.uid);
           if (membership) {
             const ownerSettings = await getTeamOwnerApiSettings(membership.ownerId);
-            if (ownerSettings?.apiKey) teamApiKey = ownerSettings.apiKey;
+            if (ownerSettings?.apiKey) resolvedApiKey = ownerSettings.apiKey;
           }
         } catch { /* ignore */ }
       }
@@ -199,11 +216,13 @@ export function StepGenerate() {
       const categoryName = store.category === '기타' && store.customCategoryName ? store.customCategoryName : store.category;
       const analysisSummary = buildAnalysisSummary(store.images);
 
-      // 최대 2회 시도
-      for (let retry = 0; retry < 2; retry++) {
-        if (retry > 0) {
-          toast.info('키워드 생성 재시도 중... (15초 대기)');
-          await new Promise(r => setTimeout(r, 15000));
+      // 최대 3회 시도 (서버에서 모델 폴백 처리, 클라이언트는 429 시 대기 후 재시도)
+      const retryDelays = [0, 20000, 30000];
+      for (let retry = 0; retry < 3; retry++) {
+        if (retryDelays[retry] > 0) {
+          const delaySec = retryDelays[retry] / 1000;
+          toast.info(`키워드 생성 재시도 중... (${delaySec}초 대기)`);
+          await new Promise(r => setTimeout(r, retryDelays[retry]));
         }
 
         const kwResponse = await fetch(kwEndpoint, {
@@ -215,17 +234,18 @@ export function StepGenerate() {
             businessName: store.businessName,
             imageContext: store.imageAnalysisContext || '',
             imageAnalysis: analysisSummary,
-            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+            ...(resolvedApiKey ? { apiKey: resolvedApiKey } : {}),
           }),
         });
 
         if (kwResponse.status === 429) {
-          console.warn(`Keyword gen 429, retry ${retry + 1}/2`);
+          console.warn(`Keyword gen 429, retry ${retry + 1}/3`);
           continue;
         }
 
         if (!kwResponse.ok) {
           const errData = await kwResponse.json().catch(() => ({ error: `HTTP ${kwResponse.status}` }));
+          // 429가 아닌 다른 에러면 재시도하지 않음
           toast.error(`키워드 생성 실패: ${errData.error}`);
           break;
         }
@@ -274,15 +294,15 @@ export function StepGenerate() {
       const prompt = generate333Prompt(store);
       const endpoint = store.apiProvider === 'gemini' ? '/api/gemini/generate' : '/api/openai/generate';
 
-      // 팀 멤버인 경우 팀 소유자의 API 키 가져오기
-      let teamApiKey = '';
-      if (user) {
+      // API 키 결정: 개인 키 > 팀 소유자 키
+      let resolvedApiKey = store.userApiKey || '';
+      if (!resolvedApiKey && user) {
         try {
           const membership = await getMyTeamMembership(user.uid);
           if (membership) {
             const ownerSettings = await getTeamOwnerApiSettings(membership.ownerId);
             if (ownerSettings?.apiKey) {
-              teamApiKey = ownerSettings.apiKey;
+              resolvedApiKey = ownerSettings.apiKey;
             }
           }
         } catch (teamError) {
@@ -299,7 +319,7 @@ export function StepGenerate() {
               user.uid,
               store.mainKeyword,
               store.category,
-              teamApiKey,
+              resolvedApiKey,
               store.apiProvider
             );
           } else {
@@ -326,7 +346,7 @@ export function StepGenerate() {
           body: JSON.stringify({
             prompt,
             ragContext,
-            ...(teamApiKey ? { apiKey: teamApiKey } : {}),
+            ...(resolvedApiKey ? { apiKey: resolvedApiKey } : {}),
           }),
         });
 
@@ -763,6 +783,58 @@ export function StepGenerate() {
                 </div>
               )}
             </button>
+          </div>
+
+          {/* 내 API 키 설정 */}
+          <div className="mt-3 p-3 rounded-xl bg-[#f9fafb] border border-[#eeeeee]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-[#6b7280]">
+                내 API 키 (선택사항)
+              </p>
+              {store.userApiKey && (
+                <span className="text-xs text-[#03C75A] flex items-center gap-1">
+                  <Check className="w-3 h-3" /> 키 저장됨
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                placeholder={store.apiProvider === 'gemini' ? 'Gemini API 키 입력' : 'OpenAI API 키 입력'}
+                value={store.userApiKey}
+                onChange={(e) => store.setUserApiKey(e.target.value)}
+                onBlur={async () => {
+                  if (store.userApiKey.trim() && user) {
+                    try {
+                      await saveApiSettings(user.uid, store.apiProvider, store.userApiKey.trim());
+                      toast.success('API 키가 저장되었습니다');
+                    } catch { /* ignore */ }
+                  }
+                }}
+                className="flex-1 h-9 text-sm bg-white border-[#eeeeee] focus:border-[#f72c5b]"
+              />
+              {store.userApiKey && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 text-xs text-[#9ca3af] hover:text-red-500"
+                  onClick={async () => {
+                    store.setUserApiKey('');
+                    if (user) {
+                      try {
+                        await saveApiSettings(user.uid, store.apiProvider, '');
+                      } catch { /* ignore */ }
+                    }
+                    toast.success('API 키가 삭제되었습니다');
+                  }}
+                >
+                  삭제
+                </Button>
+              )}
+            </div>
+            <p className="text-[10px] text-[#9ca3af] mt-1.5">
+              내 API 키를 입력하면 사이트 한도 제한 없이 무제한 사용 가능합니다
+            </p>
           </div>
         </div>
 
