@@ -84,54 +84,57 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Gemini 이미지 생성
+// Gemini 이미지 생성 (최대 3회 재시도)
 async function generateWithGemini(genAI: GoogleGenerativeAI, prompt: string, modelName: string) {
-  // Gemini 2.5 Flash with image generation
   const model = genAI.getGenerativeModel({
     model: modelName,
   });
 
-  // Request image generation
-  const result = await model.generateContent({
-    contents: [{
-      role: 'user',
-      parts: [{
-        text: `Generate a high-quality, professional photograph based on this description. Create a realistic image suitable for a blog post.\n\nDescription: ${prompt}`
-      }]
-    }],
-    generationConfig: {
-      responseModalities: ['image', 'text'],
-    } as any,
-  });
+  const MAX_RETRIES = 3;
 
-  const response = result.response;
-  const parts = response.candidates?.[0]?.content?.parts;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
+        parts: [{
+          text: `Generate a high-quality, professional photograph based on this description. Create a realistic image suitable for a blog post. You MUST respond with an image.\n\nDescription: ${prompt}`
+        }]
+      }],
+      generationConfig: {
+        responseModalities: ['image', 'text'],
+      } as any,
+    });
 
-  if (!parts || parts.length === 0) {
-    return NextResponse.json({ error: '이미지 생성에 실패했습니다' }, { status: 500 });
-  }
+    const response = result.response;
+    const parts = response.candidates?.[0]?.content?.parts;
 
-  // Find inline data (image) in response
-  for (const part of parts) {
-    if ('inlineData' in part && part.inlineData) {
-      const imageData = part.inlineData;
-      const base64Image = imageData.data;
-      const mimeType = imageData.mimeType || 'image/png';
+    if (parts && parts.length > 0) {
+      for (const part of parts) {
+        if ('inlineData' in part && part.inlineData) {
+          const imageData = part.inlineData;
+          const base64Image = imageData.data;
+          const mimeType = imageData.mimeType || 'image/png';
+          const imageUrl = `data:${mimeType};base64,${base64Image}`;
 
-      // Return base64 data URL
-      const imageUrl = `data:${mimeType};base64,${base64Image}`;
+          return NextResponse.json({
+            imageUrl,
+            revisedPrompt: prompt,
+            model: modelName,
+          });
+        }
+      }
+    }
 
-      return NextResponse.json({
-        imageUrl,
-        revisedPrompt: prompt,
-        model: modelName,
-      });
+    // 마지막 시도가 아니면 1초 대기 후 재시도
+    if (attempt < MAX_RETRIES - 1) {
+      console.log(`Gemini image generation attempt ${attempt + 1} returned no image, retrying...`);
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
 
-  // If no image found in response
+  // 3회 모두 실패
   return NextResponse.json({
-    error: '이미지를 생성할 수 없습니다. Gemini 모델이 이미지 생성을 지원하지 않을 수 있습니다.',
+    error: '이미지 생성에 실패했습니다. 다시 시도해주세요.',
   }, { status: 500 });
 }
 
