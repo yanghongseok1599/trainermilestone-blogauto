@@ -170,7 +170,8 @@ function checkNumberContamination(text: string, facts: Facts): ValidationIssue[]
 
 // 금칙어 → 대체어 매핑
 const FORBIDDEN_WORD_REPLACEMENTS: [RegExp, string][] = [
-  [/치료(하|할|합|해|된|를|가|에|의|는|를|로|효과)/g, '관리$1'],
+  // 의료 관련
+  [/치료(하|할|합|해|된|를|가|에|의|는|로|효과)/g, '관리$1'],
   [/치료/g, '관리'],
   [/완치/g, '개선'],
   [/처방/g, '추천'],
@@ -180,29 +181,68 @@ const FORBIDDEN_WORD_REPLACEMENTS: [RegExp, string][] = [
   [/환자/g, '고객'],
   [/질환/g, '고민'],
   [/질병/g, '고민'],
+  [/시술/g, '프로그램'],
+  [/부작용/g, '주의사항'],
   [/증상이 사라/g, '불편함이 줄어들'],
   [/증상을 없/g, '불편함을 줄'],
-  [/100%\s*(효과|개선|회복)/g, '큰 도움'],
+  [/증상/g, '불편함'],
+
+  // 할인·가격·광고 관련
+  [/할인(가|율|폭|된|받|행사|중|합|해|하|을|이|은|는|의|에)/g, '혜택$1'],
+  [/할인/g, '혜택'],
+  [/무료\s*체험/g, '첫 체험'],
+  [/무료/g, '체험'],
+  [/공짜/g, '체험'],
+  [/최저가/g, '합리적인 가격'],
+  [/파격\s*(할인|가격|세일)/g, '특별 혜택'],
+  [/파격/g, '특별'],
+  [/특가/g, '특별 혜택'],
+  [/세일/g, '이벤트'],
+  [/가격\s*인하/g, '특별 혜택'],
+  [/덤핑/g, '합리적 가격'],
+
+  // 과장 표현
+  [/업계\s*(1위|일위|최고)/g, '업계에서 인정받는'],
+  [/국내\s*(1위|최고|최초)/g, '국내에서 인정받는'],
+  [/1등/g, '인기 있는'],
+  [/1위/g, '인기 있는'],
+  [/최고의/g, '우수한'],
+  [/최고/g, '우수한'],
+  [/최초/g, '새로운'],
+  [/유일한/g, '특별한'],
+  [/유일무이/g, '독보적인'],
+  [/보장(합|합니다|해|된|되|할|하)/g, '기대할 수 있$1'],
+  [/보장/g, '기대'],
+  [/100%\s*(효과|개선|회복|만족|성공)/g, '큰 도움'],
   [/확실히\s*(효과|개선|회복|치료|낫)/g, '도움이 될 수 있'],
-  [/반드시\s*(낫|효과|개선|회복)/g, '도움이 될 수 있'],
-  [/무조건\s*(좋아|낫|효과)/g, '도움이 될 수 있'],
+  [/반드시\s*(낫|효과|개선|회복|성공|만족)/g, '도움이 될 수 있'],
+  [/무조건\s*(좋아|낫|효과|성공|만족|빠지|감량)/g, '도움이 될 수 있'],
   [/완벽하게\s*회복/g, '많이 좋아질 수 있'],
+  [/기적/g, '놀라운 변화'],
+  [/혁신적/g, '효과적인'],
+  [/획기적/g, '효과적인'],
+  [/압도적/g, '뛰어난'],
 ];
 
-function checkMedicalClaims(text: string): ValidationIssue[] {
+function checkForbiddenWords(text: string): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  const forbiddenMedical = [
-    '치료', '완치', '처방', '진단', '약물', '투여', '환자', '질환', '질병',
+  const forbiddenWords = [
+    // 의료
+    '치료', '완치', '처방', '진단', '약물', '투여', '환자', '질환', '질병', '시술', '부작용',
+    // 할인·가격
+    '할인', '무료', '공짜', '최저가', '파격', '특가', '세일', '덤핑',
+    // 과장
+    '1등', '1위', '최초', '유일무이', '기적', '획기적',
     '100% 효과', '무조건 좋아', '반드시 낫', '확실히 치료', '완벽하게 회복',
   ];
 
-  const found = forbiddenMedical.filter(term => text.includes(term));
+  const found = forbiddenWords.filter(term => text.includes(term));
   if (found.length > 0) {
     issues.push({
       type: 'critical',
       code: 'MEDICAL_CLAIM',
-      message: `의료/금칙어 표현: ${found.join(', ')}`,
+      message: `금칙어 표현: ${found.join(', ')}`,
     });
   }
 
@@ -256,7 +296,7 @@ export function validateGeneratedContent(
     ...checkForbiddenPatterns(text),
     ...checkStructure(text),
     ...checkNumberContamination(text, facts),
-    ...checkMedicalClaims(text),
+    ...checkForbiddenWords(text),
   ];
 
   const criticalCount = allIssues.filter(i => i.type === 'critical').length;
