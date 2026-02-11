@@ -168,12 +168,33 @@ function checkNumberContamination(text: string, facts: Facts): ValidationIssue[]
 // 4. 의료 단정 표현 탐지
 // ============================================================
 
+// 금칙어 → 대체어 매핑
+const FORBIDDEN_WORD_REPLACEMENTS: [RegExp, string][] = [
+  [/치료(하|할|합|해|된|를|가|에|의|는|를|로|효과)/g, '관리$1'],
+  [/치료/g, '관리'],
+  [/완치/g, '개선'],
+  [/처방/g, '추천'],
+  [/진단/g, '확인'],
+  [/약물/g, '영양제'],
+  [/투여/g, '섭취'],
+  [/환자/g, '고객'],
+  [/질환/g, '고민'],
+  [/질병/g, '고민'],
+  [/증상이 사라/g, '불편함이 줄어들'],
+  [/증상을 없/g, '불편함을 줄'],
+  [/100%\s*(효과|개선|회복)/g, '큰 도움'],
+  [/확실히\s*(효과|개선|회복|치료|낫)/g, '도움이 될 수 있'],
+  [/반드시\s*(낫|효과|개선|회복)/g, '도움이 될 수 있'],
+  [/무조건\s*(좋아|낫|효과)/g, '도움이 될 수 있'],
+  [/완벽하게\s*회복/g, '많이 좋아질 수 있'],
+];
+
 function checkMedicalClaims(text: string): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   const forbiddenMedical = [
-    '완치', '치료됩니다', '100% 효과', '무조건 좋아',
-    '반드시 낫', '확실히 치료', '완벽하게 회복',
+    '치료', '완치', '처방', '진단', '약물', '투여', '환자', '질환', '질병',
+    '100% 효과', '무조건 좋아', '반드시 낫', '확실히 치료', '완벽하게 회복',
   ];
 
   const found = forbiddenMedical.filter(term => text.includes(term));
@@ -181,7 +202,7 @@ function checkMedicalClaims(text: string): ValidationIssue[] {
     issues.push({
       type: 'critical',
       code: 'MEDICAL_CLAIM',
-      message: `의료 단정 표현: ${found.join(', ')}`,
+      message: `의료/금칙어 표현: ${found.join(', ')}`,
     });
   }
 
@@ -215,6 +236,11 @@ function autoFix(text: string): string {
   // 영어 레이블 제거 (기존 cleanMarkdownAndForbiddenPatterns와 동일)
   fixed = fixed.replace(/\s*\((?:Fact|Interpretation|Real|Experience|F|I|R|E|R&E|F\+I)\)/gi, '');
 
+  // 금칙어 자동 교체
+  for (const [pattern, replacement] of FORBIDDEN_WORD_REPLACEMENTS) {
+    fixed = fixed.replace(pattern, replacement);
+  }
+
   return fixed;
 }
 
@@ -239,9 +265,9 @@ export function validateGeneratedContent(
   // 점수 계산: 100점 시작, critical -20, warning -5
   const score = Math.max(0, 100 - criticalCount * 20 - warningCount * 5);
 
-  // warning이 있으면 자동 수정 시도
+  // warning 또는 금칙어가 있으면 자동 수정 시도
   const hasFixableIssues = allIssues.some(i =>
-    ['MARKDOWN_HEADING', 'MARKDOWN_BOLD', 'EMOJI_FOUND'].includes(i.code)
+    ['MARKDOWN_HEADING', 'MARKDOWN_BOLD', 'EMOJI_FOUND', 'MEDICAL_CLAIM'].includes(i.code)
   );
 
   const result: ValidationResult = {
