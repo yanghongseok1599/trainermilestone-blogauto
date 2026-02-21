@@ -423,6 +423,14 @@ export function StepBusinessInfo() {
       toast.error('속성명을 입력해주세요');
       return;
     }
+    // 숨겨진 속성이면 복원
+    if (hiddenAttributes.includes(newAttributeName)) {
+      setHiddenAttributes(hiddenAttributes.filter(a => a !== newAttributeName));
+      setNewAttributeName('');
+      setShowAddAttribute(false);
+      toast.success(`"${newAttributeName}" 항목이 복원되었습니다`);
+      return;
+    }
     if (CATEGORY_ATTRIBUTES[category].includes(newAttributeName) || customAttributes.includes(newAttributeName)) {
       toast.error('이미 존재하는 속성입니다');
       return;
@@ -470,13 +478,23 @@ export function StepBusinessInfo() {
 
   // 속성 삭제 (숨김 처리)
   const handleDeleteAttribute = (attr: string) => {
+    const label = getLabel(attr);
     const isCustom = customAttributes.includes(attr);
     if (isCustom) {
       removeCustomAttribute(attr);
+      toast.success(`"${label}" 항목이 삭제되었습니다`);
     } else {
       hideAttribute(attr);
+      toast.success(`"${label}" 항목이 삭제되었습니다`, {
+        action: {
+          label: '되돌리기',
+          onClick: () => {
+            setHiddenAttributes(hiddenAttributes.filter(a => a !== attr));
+            toast.success(`"${label}" 항목이 복원되었습니다`);
+          },
+        },
+      });
     }
-    toast.success(`"${getLabel(attr)}" 항목이 삭제되었습니다`);
   };
 
   // 속성 입력 필드 렌더링
