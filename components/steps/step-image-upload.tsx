@@ -20,7 +20,7 @@ import { Upload, X, Loader2, ImageIcon, Sparkles, ArrowRight, ArrowLeft, AlertTr
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
-import { loadApiSettings, saveReferenceText, loadReferenceText } from '@/lib/firestore-service';
+import { loadApiSettings, saveReferenceText } from '@/lib/firestore-service';
 
 /**
  * 이미지를 Canvas로 리사이즈 & 압축하여 base64 반환
@@ -78,19 +78,6 @@ export function StepImageUpload() {
     };
     loadKey();
   }, [user, userApiKey, setUserApiKey]);
-
-  // Firestore에서 참고 글 로드
-  useEffect(() => {
-    const loadRef = async () => {
-      if (user && !referenceText) {
-        try {
-          const text = await loadReferenceText(user.uid);
-          if (text) setReferenceText(text);
-        } catch { /* ignore */ }
-      }
-    };
-    loadRef();
-  }, [user, referenceText, setReferenceText]);
 
   // 참고 글 저장 (onBlur)
   const handleReferenceTextBlur = useCallback(async () => {
