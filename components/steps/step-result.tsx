@@ -188,7 +188,7 @@ export function StepResult() {
         title = titleMatch[1].trim().replace(/^\d+\.\s*/, ''); // 숫자 접두사 제거
       }
 
-      // 1. Firebase에 글 저장 (기존 기능)
+      // 1. Supabase에 글 저장
       const postId = await savePost(user.uid, {
         title,
         content: generatedContent,
@@ -214,7 +214,7 @@ export function StepResult() {
         );
         console.log('Post saved with embedding to Supabase');
       } catch (embeddingError) {
-        // 임베딩 저장 실패해도 Firebase 저장은 성공했으므로 경고만 표시
+        // 임베딩 저장 실패해도 글 저장은 성공했으므로 경고만 표시
         console.warn('Embedding save failed (non-critical):', embeddingError);
       }
 

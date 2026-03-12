@@ -75,7 +75,7 @@ function LoginContent() {
 
       // 구체적인 에러 안내
       if (errorMessage.includes('operation-not-allowed')) {
-        toast.error('Firebase Console에서 Google 로그인을 활성화해주세요', {
+        toast.error('Google 로그인 설정을 확인해주세요', {
           description: 'Authentication > Sign-in method > Google > 사용 설정',
           duration: 8000,
         });

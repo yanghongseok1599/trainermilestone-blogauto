@@ -174,10 +174,10 @@ export const PLANS: Record<SubscriptionPlan, PlanInfo> = {
   },
 };
 
-// 결제 정보 (Firestore 저장용)
+// 결제 정보
 export interface Payment {
   id: string;                    // 결제 고유 ID
-  oderId: string;               // 주문 ID (토스 orderId)
+  orderId: string;               // 주문 ID (토스 orderId)
   userId: string;                // 사용자 ID
   paymentKey?: string;           // 토스 paymentKey
 
@@ -205,7 +205,7 @@ export interface Payment {
 
 // 사용자 구독 정보
 export interface UserSubscription {
-  oderId: string;                // 사용자 ID
+  userId: string;                // 사용자 ID
 
   // 현재 플랜
   currentPlan: SubscriptionPlan;
@@ -217,10 +217,10 @@ export interface UserSubscription {
   imageAnalysisCount: number;    // 이번 달 이미지 분석 횟수
   imageGenerationCount: number;       // 이번 달 유료 이미지 생성 횟수
   dailyPaidImageGenerationCount: number; // 오늘 유료 모델 이미지 생성 횟수
-  dailyImageGenerationResetDate: Date; // 일일 이미지 생성 리셋 날짜
+  dailyImageGenerationResetDate?: Date; // 일일 이미지 생성 리셋 날짜
   tokenUsage: number;            // 이번 달 토큰 사용량
   dailyTokenUsage: number;       // 오늘 토큰 사용량
-  dailyTokenResetDate: Date;     // 일일 토큰 리셋 날짜
+  dailyTokenResetDate?: Date;    // 일일 토큰 리셋 날짜
   usageResetDate: Date;          // 월간 사용량 리셋 날짜
 
   // 결제 정보

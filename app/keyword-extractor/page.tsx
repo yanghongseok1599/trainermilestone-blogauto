@@ -86,7 +86,7 @@ function KeywordExtractorContent() {
   // Load usage on mount
   useEffect(() => {
     if (user) {
-      getUsageToday(user.uid).then((usage) => {
+      getUsageToday(user.uid, user.email || undefined).then((usage) => {
         setUsageRemaining(usage.remaining);
       }).catch(console.error);
     }
@@ -222,9 +222,9 @@ function KeywordExtractorContent() {
     }
 
     try {
-      const usageCheck = await checkAndIncrementUsage(user.uid);
+      const usageCheck = await checkAndIncrementUsage(user.uid, user.email || undefined);
       if (!usageCheck.allowed) {
-        toast.error('오늘의 검색 횟수를 모두 사용했습니다. (일 3회 제한)', { duration: 5000 });
+        toast.error(`오늘의 검색 횟수를 모두 사용했습니다. (일 ${usageCheck.limit}회 제한)`, { duration: 5000 });
         return;
       }
       setUsageRemaining(usageCheck.remaining);

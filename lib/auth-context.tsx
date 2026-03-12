@@ -1,34 +1,43 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import {
-  User,
-  onAuthStateChanged,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  updateProfile,
-  browserPopupRedirectResolver,
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { auth, db, googleProvider } from './firebase';
+import { createSupabaseBrowserClient } from './supabase-client';
 import { logActivity } from './activity-log';
-
-// 관리자 계정 설정
-const ADMIN_CREDENTIALS = {
-  username: 'ccv5',
-  password: '3412aa',
-};
+import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
 const ADMIN_SESSION_KEY = 'blogbooster_admin_session';
 
+// Supabase User 호환 인터페이스 - 기존 컴포넌트에서 user.uid, user.displayName 등 사용
+export interface AppUser {
+  uid: string;
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+}
+
+function toAppUser(supabaseUser: SupabaseUser): AppUser {
+  return {
+    uid: supabaseUser.id,
+    id: supabaseUser.id,
+    email: supabaseUser.email ?? null,
+    displayName: (supabaseUser.user_metadata?.full_name as string)
+      || (supabaseUser.user_metadata?.name as string)
+      || null,
+    photoURL: (supabaseUser.user_metadata?.avatar_url as string)
+      || (supabaseUser.user_metadata?.picture as string)
+      || null,
+    app_metadata: supabaseUser.app_metadata,
+    user_metadata: supabaseUser.user_metadata,
+  };
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   loading: boolean;
-  isSuperAdmin: boolean; // 시스템 관리자 (ccv5)
+  isSuperAdmin: boolean;
   getAuthHeaders: () => Promise<Record<string, string>>;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
@@ -39,8 +48,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const supabase = createSupabaseBrowserClient();
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
@@ -49,158 +61,147 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const adminSession = localStorage.getItem(ADMIN_SESSION_KEY);
     if (adminSession === 'true') {
       setIsSuperAdmin(true);
-      document.cookie = 'admin_uid=admin-ccv5; path=/; max-age=86400; SameSite=Lax';
-      // 관리자용 가상 유저 객체 생성
-      const adminUser = {
+      const adminUser: AppUser = {
         uid: 'admin-ccv5',
+        id: 'admin-ccv5',
         email: 'admin@trainermilestone.com',
         displayName: '관리자',
         photoURL: null,
-      } as User;
+        app_metadata: { role: 'admin' },
+      };
       setUser(adminUser);
       setLoading(false);
       return;
     }
 
-    // Skip if auth is not initialized
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
-
-    // Handle redirect result (for mobile/popup blocked cases)
-    const handleRedirectResult = async () => {
-      if (!auth) return;
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          await saveUserToFirestore(result.user);
-        }
-      } catch (error) {
-        console.error('Redirect result error:', error);
+    // Supabase 세션 복원
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        checkAndSetUser(session.user);
+      } else {
+        setLoading(false);
       }
-    };
-    handleRedirectResult();
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user && db) {
-        // 차단된 사용자 체크
-        try {
-          const userRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists() && userSnap.data().isBlocked) {
-            await signOut(auth!);
-            setUser(null);
-            setLoading(false);
-            return;
-          }
-        } catch {
-          // 체크 실패 시 통과 허용
-        }
-      }
-      setUser(user);
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    // 인증 상태 변경 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setSession(session);
+        if (session?.user) {
+          await checkAndSetUser(session.user);
+        } else {
+          setUser(null);
+          setIsSuperAdmin(false);
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Save user data to Firestore
-  const saveUserToFirestore = async (user: User) => {
-    if (!db) return;
+  const checkAndSetUser = async (authUser: SupabaseUser) => {
+    // 차단된 사용자 체크
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_blocked')
+        .eq('id', authUser.id)
+        .single();
 
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    const now = new Date();
+      if (profile?.is_blocked) {
+        await supabase.auth.signOut();
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // 프로필 체크 실패 시 통과 허용
+    }
 
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        createdAt: serverTimestamp(),
-        lastLoginAt: serverTimestamp(),
-        loginHistory: [Timestamp.fromDate(now)],
-      });
-    } else {
-      // 최근 5회 접속 기록 유지
-      const data = userSnap.data();
-      const history: Timestamp[] = data.loginHistory || [];
-      history.push(Timestamp.fromDate(now));
-      // 최근 5개만 유지
+    // admin 체크
+    if (authUser.app_metadata?.role === 'admin') {
+      setIsSuperAdmin(true);
+    }
+
+    setUser(toAppUser(authUser));
+    setLoading(false);
+  };
+
+  const updateLoginHistory = async (userId: string) => {
+    try {
+      const now = new Date().toISOString();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('login_history')
+        .eq('id', userId)
+        .single();
+
+      const history = profile?.login_history || [];
+      history.push(now);
       const trimmed = history.slice(-5);
 
-      await setDoc(userRef, {
-        lastLoginAt: serverTimestamp(),
-        loginHistory: trimmed,
-      }, { merge: true });
+      await supabase
+        .from('profiles')
+        .update({
+          last_login_at: now,
+          login_history: trimmed,
+        })
+        .eq('id', userId);
+    } catch (error) {
+      console.error('Failed to update login history:', error);
     }
   };
 
   const signInWithGoogle = async () => {
-    if (!auth || !googleProvider) {
-      throw new Error('Firebase가 초기화되지 않았습니다. .env.local 파일을 확인해주세요.');
-    }
-    try {
-      // Try popup first (COOP header allows this)
-      const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
-      await saveUserToFirestore(result.user);
-      logActivity(result.user.uid, 'login', 'Google 로그인');
-    } catch (error: unknown) {
-      const firebaseError = error as { code?: string; message?: string };
-      console.error('Google sign in error:', firebaseError.code, firebaseError.message);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
 
-      // Popup failed for any reason → fall back to redirect
-      if (firebaseError.code === 'auth/popup-blocked' ||
-          firebaseError.code === 'auth/popup-closed-by-user' ||
-          firebaseError.code === 'auth/cancelled-popup-request' ||
-          firebaseError.code === 'auth/network-request-failed' ||
-          firebaseError.code === 'auth/internal-error') {
-        console.log('Popup failed, falling back to redirect...');
-        await signInWithRedirect(auth, googleProvider);
-        return;
+    if (error) {
+      if (error.message.includes('not enabled')) {
+        throw new Error('Google 로그인이 활성화되지 않았습니다. Supabase Dashboard에서 Google Provider를 활성화해주세요.');
       }
-
-      // Provide user-friendly error messages
-      if (firebaseError.code === 'auth/unauthorized-domain') {
-        throw new Error('이 도메인은 Firebase에서 승인되지 않았습니다. Firebase Console > Authentication > Settings > 승인된 도메인에서 도메인을 추가해주세요.');
-      }
-      if (firebaseError.code === 'auth/operation-not-allowed') {
-        throw new Error('Google 로그인이 활성화되지 않았습니다. Firebase Console > Authentication > Sign-in method에서 Google을 활성화해주세요.');
-      }
-
-      throw new Error(firebaseError.message || 'Google 로그인에 실패했습니다.');
+      throw new Error(error.message || 'Google 로그인에 실패했습니다.');
     }
   };
 
   const signInWithEmail = async (email: string, password: string) => {
-    if (!auth) {
-      throw new Error('Firebase가 초기화되지 않았습니다. .env.local 파일을 확인해주세요.');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.');
+      }
+      throw new Error(error.message || '로그인에 실패했습니다.');
     }
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      await saveUserToFirestore(result.user);
-      logActivity(result.user.uid, 'login', '이메일 로그인');
-    } catch (error) {
-      console.error('Email sign in error:', error);
-      throw error;
+
+    if (data.user) {
+      await updateLoginHistory(data.user.id);
+      logActivity(data.user.id, 'login', '이메일 로그인');
     }
   };
 
   // 관리자 로그인 (이메일 형식 불필요)
   const signInAsAdmin = (username: string, password: string): boolean => {
-    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+    if (username === 'ccv5' && password === '3412aa') {
       localStorage.setItem(ADMIN_SESSION_KEY, 'true');
-      document.cookie = 'admin_uid=admin-ccv5; path=/; max-age=86400; SameSite=Lax';
       setIsSuperAdmin(true);
-      // 관리자용 가상 유저 객체 생성
-      const adminUser = {
+      const adminUser: AppUser = {
         uid: 'admin-ccv5',
+        id: 'admin-ccv5',
         email: 'admin@trainermilestone.com',
         displayName: '관리자',
         photoURL: null,
-      } as User;
+        app_metadata: { role: 'admin' },
+      };
       setUser(adminUser);
       return true;
     }
@@ -208,50 +209,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUpWithEmail = async (email: string, password: string, name: string) => {
-    if (!auth) {
-      throw new Error('Firebase가 초기화되지 않았습니다. .env.local 파일을 확인해주세요.');
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+        },
+      },
+    });
+
+    if (error) {
+      if (error.message.includes('already registered')) {
+        throw new Error('이미 가입된 이메일입니다.');
+      }
+      throw new Error(error.message || '회원가입에 실패했습니다.');
     }
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(result.user, { displayName: name });
-      await saveUserToFirestore(result.user);
-    } catch (error) {
-      console.error('Email sign up error:', error);
-      throw error;
+
+    if (data.user) {
+      await updateLoginHistory(data.user.id);
     }
   };
 
   const logout = async () => {
-    // 관리자 세션 클리어
     localStorage.removeItem(ADMIN_SESSION_KEY);
-    document.cookie = 'admin_uid=; path=/; max-age=0';
     const wasAdmin = isSuperAdmin;
     setIsSuperAdmin(false);
     setUser(null);
+    setSession(null);
 
-    // 관리자는 Firebase 인증을 사용하지 않으므로 signOut 불필요
-    if (wasAdmin || !auth) {
-      return;
-    }
+    if (wasAdmin) return;
 
     try {
-      await signOut(auth!);
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
     }
   };
 
-  // API 요청용 인증 헤더 반환 (관리자는 쿠키 사용, 일반 유저는 Firebase ID 토큰)
+  // API 요청용 인증 헤더 반환
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
-    if (isSuperAdmin) return {}; // 관리자는 쿠키로 인증
-    if (user) {
-      try {
-        const token = await user.getIdToken();
-        return { 'Authorization': `Bearer ${token}` };
-      } catch {
-        return {};
-      }
+    if (isSuperAdmin) {
+      return { 'X-Admin-Auth': 'admin-ccv5' };
+    }
+    if (session?.access_token) {
+      return { 'Authorization': `Bearer ${session.access_token}` };
+    }
+    // 세션 갱신 시도
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) {
+      return { 'Authorization': `Bearer ${data.session.access_token}` };
     }
     return {};
   };

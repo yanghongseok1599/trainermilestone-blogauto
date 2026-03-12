@@ -177,7 +177,7 @@ ${contexts.join('\n\n---\n\n')}
 단, 내용을 그대로 복사하지 말고 새로운 글을 작성하세요.`;
 }
 
-// 간단한 RAG 컨텍스트 (Firebase만 사용, API 키 불필요)
+// 간단한 RAG 컨텍스트 (Supabase 사용, API 키 불필요)
 export async function generateSimpleRagContext(userId: string): Promise<string> {
   try {
     const recentPosts = await getRecentPosts(userId, 3);

@@ -82,7 +82,7 @@ export default function PrivacyPage() {
                     <td className="py-2">결제 처리</td>
                   </tr>
                   <tr className="border-b border-[#eeeeee]">
-                    <td className="py-2 pr-4">Firebase (Google)</td>
+                    <td className="py-2 pr-4">Supabase</td>
                     <td className="py-2">사용자 인증</td>
                   </tr>
                   <tr className="border-b border-[#eeeeee]">

@@ -121,7 +121,7 @@ export default function PricingPage() {
       // Firestore에 결제 정보 미리 저장 (PENDING 상태)
       await createPayment({
         id: paymentId,
-        oderId: orderId,
+        orderId: orderId,
         userId: user.uid,
         amount: planInfo.price,
         status: 'PENDING',

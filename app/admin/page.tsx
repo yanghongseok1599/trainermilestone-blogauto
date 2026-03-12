@@ -31,8 +31,7 @@ import {
   ImagePlus,
   Zap,
 } from 'lucide-react';
-import { collection, getDocs, query, orderBy, Timestamp, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { createSupabaseBrowserClient } from '@/lib/supabase-client';
 import { getUserSubscription, updateUserSubscription } from '@/lib/payment-service';
 import { PLANS, SubscriptionPlan } from '@/types/payment';
 import { getActivityLog, ActivityRecord, ACTIVITY_LABELS, ActivityType } from '@/lib/activity-log';
@@ -101,46 +100,35 @@ export default function AdminPage() {
   }, [isSuperAdmin]);
 
   const loadUsers = async () => {
-    if (!db) {
-      toast.error('Firestore가 초기화되지 않았습니다');
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*, subscriptions(*)')
+        .order('created_at', { ascending: false });
 
-      const userList: UserData[] = [];
-      for (const docSnap of querySnapshot.docs) {
-        const data = docSnap.data();
-        // 구독 정보 가져오기
-        let currentPlan: SubscriptionPlan = 'FREE';
-        try {
-          const sub = await getUserSubscription(docSnap.id);
-          if (sub) currentPlan = sub.currentPlan;
-        } catch {
-          // 구독 정보 없으면 FREE
-        }
+      if (error) throw error;
 
-        // 로그인 히스토리 변환
-        const loginHistory: Date[] = (data.loginHistory || []).map((ts: any) =>
-          ts instanceof Timestamp ? ts.toDate() : new Date(ts)
-        );
+      const userList: UserData[] = (data || []).map((row: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sub = Array.isArray(row.subscriptions) ? (row.subscriptions as any[])[0] : row.subscriptions;
+        const loginHistory: Date[] = Array.isArray(row.login_history)
+          ? (row.login_history as string[]).map((ts) => new Date(ts))
+          : [];
 
-        userList.push({
-          uid: docSnap.id,
-          email: data.email || '',
-          displayName: data.displayName || null,
-          photoURL: data.photoURL || null,
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : null,
-          lastLoginAt: data.lastLoginAt instanceof Timestamp ? data.lastLoginAt.toDate() : null,
+        return {
+          uid: row.id as string,
+          email: (row.email as string) || '',
+          displayName: (row.display_name as string) || null,
+          photoURL: (row.photo_url as string) || null,
+          createdAt: row.created_at ? new Date(row.created_at as string) : null,
+          lastLoginAt: row.last_login_at ? new Date(row.last_login_at as string) : null,
           loginHistory,
-          isBlocked: data.isBlocked || false,
-          currentPlan,
-        });
-      }
+          isBlocked: (row.is_blocked as boolean) || false,
+          currentPlan: (sub?.current_plan as SubscriptionPlan) || 'FREE',
+        };
+      });
 
       setUsers(userList);
     } catch (error) {
@@ -169,7 +157,7 @@ export default function AdminPage() {
 
   // 요금제 변경
   const handleChangePlan = async () => {
-    if (!selectedUser || !db) return;
+    if (!selectedUser) return;
     setIsUpdating(true);
     try {
       const now = new Date();
@@ -198,12 +186,17 @@ export default function AdminPage() {
 
   // 사용자 차단/해제
   const handleToggleBlock = async () => {
-    if (!selectedUser || !db) return;
+    if (!selectedUser) return;
     setIsUpdating(true);
     try {
-      const userRef = doc(db, 'users', selectedUser.uid);
+      const supabase = createSupabaseBrowserClient();
       const newBlockedState = !selectedUser.isBlocked;
-      await updateDoc(userRef, { isBlocked: newBlockedState });
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_blocked: newBlockedState })
+        .eq('id', selectedUser.uid);
+
+      if (error) throw error;
 
       setUsers(prev => prev.map(u =>
         u.uid === selectedUser.uid ? { ...u, isBlocked: newBlockedState } : u
@@ -223,20 +216,26 @@ export default function AdminPage() {
 
   // 사용자 삭제
   const handleDeleteUser = async () => {
-    if (!selectedUser || !db) return;
+    if (!selectedUser) return;
     setIsUpdating(true);
     try {
-      await deleteDoc(doc(db, 'users', selectedUser.uid));
-      try {
-        await deleteDoc(doc(db, 'users', selectedUser.uid, 'subscription', 'current'));
-      } catch {
-        // 구독 정보가 없을 수 있음
-      }
-      try {
-        await deleteDoc(doc(db, 'users', selectedUser.uid, 'activity', 'log'));
-      } catch {
-        // 활동 기록이 없을 수 있음
-      }
+      const supabase = createSupabaseBrowserClient();
+      // 관련 데이터 삭제 (cascade가 설정되어 있지 않을 경우를 대비)
+      await supabase.from('activity_logs').delete().eq('user_id', selectedUser.uid);
+      await supabase.from('subscriptions').delete().eq('user_id', selectedUser.uid);
+      await supabase.from('posts').delete().eq('user_id', selectedUser.uid);
+      await supabase.from('presets').delete().eq('user_id', selectedUser.uid);
+      await supabase.from('business_info').delete().eq('user_id', selectedUser.uid);
+      await supabase.from('user_settings').delete().eq('user_id', selectedUser.uid);
+      await supabase.from('keyword_usage').delete().eq('user_id', selectedUser.uid);
+      await supabase.from('seo_schedules').delete().eq('user_id', selectedUser.uid);
+
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', selectedUser.uid);
+
+      if (error) throw error;
 
       setUsers(prev => prev.filter(u => u.uid !== selectedUser.uid));
       setSelectedUser(null);

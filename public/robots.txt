@@ -3,7 +3,7 @@ User-agent: *
 Allow: /
 
 # Host
-Host: https://blogbooster.kr
+Host: https://trainermilestone-blogbooster.vercel.app
 
 # Sitemaps
-Sitemap: https://blogbooster.kr/sitemap.xml
+Sitemap: https://trainermilestone-blogbooster.vercel.app/sitemap.xml

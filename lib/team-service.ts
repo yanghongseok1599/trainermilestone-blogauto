@@ -1,16 +1,6 @@
-import {
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  deleteDoc,
-  collection,
-  query,
-  where,
-  serverTimestamp,
-  Timestamp,
-} from 'firebase/firestore';
-import { db } from './firebase';
+import { createSupabaseBrowserClient } from './supabase-client';
+
+const supabase = createSupabaseBrowserClient();
 
 export interface TeamMember {
   uid: string;
@@ -37,77 +27,72 @@ export interface TeamMembership {
   joinedAt: Date;
 }
 
-// 팀 생성/업데이트 (API 소유자)
+// 팀 생성/업데이트
 export async function saveTeam(
   ownerId: string,
   ownerEmail: string,
   ownerName: string | null,
   members: Omit<TeamMember, 'addedAt'>[]
 ): Promise<void> {
-  if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
+  // 팀 upsert
+  const { data: team, error: teamError } = await supabase
+    .from('teams')
+    .upsert({
+      owner_id: ownerId,
+      owner_email: ownerEmail,
+      owner_name: ownerName,
+    }, { onConflict: 'owner_id' })
+    .select('id')
+    .single();
 
-  const teamRef = doc(db, 'teams', ownerId);
-  const existingTeam = await getDoc(teamRef);
+  if (teamError || !team) throw new Error(`팀 저장 실패: ${teamError?.message}`);
 
-  const membersWithTimestamp: TeamMember[] = members.map((member) => ({
-    ...member,
-    addedAt: new Date(),
-  }));
+  // 기존 멤버 삭제 후 재삽입
+  await supabase
+    .from('team_members')
+    .delete()
+    .eq('team_id', team.id);
 
-  if (existingTeam.exists()) {
-    // 기존 멤버의 addedAt 유지
-    const existingMembers = existingTeam.data().members || [];
-    membersWithTimestamp.forEach((newMember, index) => {
-      const existing = existingMembers.find((m: TeamMember) => m.uid === newMember.uid);
-      if (existing) {
-        membersWithTimestamp[index].addedAt = existing.addedAt instanceof Timestamp
-          ? existing.addedAt.toDate()
-          : existing.addedAt;
-      }
-    });
-  }
+  if (members.length > 0) {
+    const { error: membersError } = await supabase
+      .from('team_members')
+      .insert(members.map((m) => ({
+        team_id: team.id,
+        user_id: m.uid,
+        email: m.email,
+        display_name: m.displayName,
+        photo_url: m.photoURL,
+        status: m.status || 'active',
+      })));
 
-  await setDoc(teamRef, {
-    ownerId,
-    ownerEmail,
-    ownerName,
-    members: membersWithTimestamp,
-    createdAt: existingTeam.exists() ? existingTeam.data().createdAt : serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  // 각 멤버에게 팀 멤버십 정보 저장
-  for (const member of membersWithTimestamp) {
-    const membershipRef = doc(db, 'users', member.uid, 'teamMembership', ownerId);
-    await setDoc(membershipRef, {
-      ownerId,
-      ownerEmail,
-      ownerName,
-      joinedAt: serverTimestamp(),
-    });
+    if (membersError) throw new Error(`멤버 저장 실패: ${membersError.message}`);
   }
 }
 
-// 팀 정보 조회 (API 소유자)
+// 팀 정보 조회
 export async function getTeam(ownerId: string): Promise<TeamInfo | null> {
-  if (!db) return null;
+  const { data: team, error } = await supabase
+    .from('teams')
+    .select('*, team_members(*)')
+    .eq('owner_id', ownerId)
+    .single();
 
-  const teamRef = doc(db, 'teams', ownerId);
-  const teamSnap = await getDoc(teamRef);
+  if (error || !team) return null;
 
-  if (!teamSnap.exists()) return null;
-
-  const data = teamSnap.data();
   return {
-    ownerId: data.ownerId,
-    ownerEmail: data.ownerEmail,
-    ownerName: data.ownerName,
-    members: (data.members || []).map((m: TeamMember & { addedAt: Timestamp | Date }) => ({
-      ...m,
-      addedAt: m.addedAt instanceof Timestamp ? m.addedAt.toDate() : m.addedAt,
+    ownerId: team.owner_id,
+    ownerEmail: team.owner_email,
+    ownerName: team.owner_name,
+    members: (team.team_members || []).map((m: Record<string, unknown>) => ({
+      uid: m.user_id as string,
+      email: m.email as string,
+      displayName: m.display_name as string | null,
+      photoURL: m.photo_url as string | null,
+      addedAt: new Date(m.added_at as string),
+      status: (m.status as 'pending' | 'active') || 'active',
     })),
-    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
-    updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(),
+    createdAt: new Date(team.created_at),
+    updatedAt: new Date(team.updated_at),
   };
 }
 
@@ -118,131 +103,124 @@ export async function addTeamMember(
   ownerName: string | null,
   member: Omit<TeamMember, 'addedAt' | 'status'>
 ): Promise<void> {
-  if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
+  // 팀 가져오기 또는 생성
+  let { data: team } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('owner_id', ownerId)
+    .single();
 
-  const teamRef = doc(db, 'teams', ownerId);
-  const teamSnap = await getDoc(teamRef);
+  if (!team) {
+    const { data: newTeam, error: createError } = await supabase
+      .from('teams')
+      .insert({
+        owner_id: ownerId,
+        owner_email: ownerEmail,
+        owner_name: ownerName,
+      })
+      .select('id')
+      .single();
 
-  let existingMembers: TeamMember[] = [];
-  if (teamSnap.exists()) {
-    existingMembers = teamSnap.data().members || [];
+    if (createError || !newTeam) throw new Error(`팀 생성 실패: ${createError?.message}`);
+    team = newTeam;
   }
 
-  // 이미 존재하는 멤버인지 확인
-  if (existingMembers.some((m) => m.uid === member.uid)) {
-    throw new Error('이미 팀에 추가된 멤버입니다');
-  }
+  // 중복 체크
+  const { data: existing } = await supabase
+    .from('team_members')
+    .select('id')
+    .eq('team_id', team.id)
+    .eq('user_id', member.uid)
+    .single();
 
-  const newMember: TeamMember = {
-    ...member,
-    addedAt: new Date(),
-    status: 'active',
-  };
+  if (existing) throw new Error('이미 팀에 추가된 멤버입니다');
 
-  await setDoc(teamRef, {
-    ownerId,
-    ownerEmail,
-    ownerName,
-    members: [...existingMembers, newMember],
-    createdAt: teamSnap.exists() ? teamSnap.data().createdAt : serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const { error } = await supabase
+    .from('team_members')
+    .insert({
+      team_id: team.id,
+      user_id: member.uid,
+      email: member.email,
+      display_name: member.displayName,
+      photo_url: member.photoURL,
+      status: 'active',
+    });
 
-  // 멤버에게 팀 멤버십 정보 저장
-  const membershipRef = doc(db, 'users', member.uid, 'teamMembership', ownerId);
-  await setDoc(membershipRef, {
-    ownerId,
-    ownerEmail,
-    ownerName,
-    joinedAt: serverTimestamp(),
-  });
+  if (error) throw new Error(`멤버 추가 실패: ${error.message}`);
 }
 
 // 팀 멤버 삭제
 export async function removeTeamMember(ownerId: string, memberId: string): Promise<void> {
-  if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
+  const { data: team } = await supabase
+    .from('teams')
+    .select('id')
+    .eq('owner_id', ownerId)
+    .single();
 
-  const teamRef = doc(db, 'teams', ownerId);
-  const teamSnap = await getDoc(teamRef);
+  if (!team) return;
 
-  if (!teamSnap.exists()) return;
-
-  const data = teamSnap.data();
-  const updatedMembers = (data.members || []).filter((m: TeamMember) => m.uid !== memberId);
-
-  await setDoc(teamRef, {
-    ...data,
-    members: updatedMembers,
-    updatedAt: serverTimestamp(),
-  });
-
-  // 멤버의 팀 멤버십 정보 삭제
-  const membershipRef = doc(db, 'users', memberId, 'teamMembership', ownerId);
-  await deleteDoc(membershipRef);
+  await supabase
+    .from('team_members')
+    .delete()
+    .eq('team_id', team.id)
+    .eq('user_id', memberId);
 }
 
-// 내가 속한 팀 조회 (팀원)
+// 내가 속한 팀 조회
 export async function getMyTeamMembership(userId: string): Promise<TeamMembership | null> {
-  if (!db) return null;
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('*, teams(*)')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
 
-  const membershipRef = collection(db, 'users', userId, 'teamMembership');
-  const membershipSnap = await getDocs(membershipRef);
+  if (error || !data || !data.teams) return null;
 
-  if (membershipSnap.empty) return null;
-
-  // 첫 번째 멤버십 반환 (한 팀에만 속할 수 있다고 가정)
-  const firstDoc = membershipSnap.docs[0];
-  const data = firstDoc.data();
-
+  const team = data.teams as Record<string, unknown>;
   return {
-    ownerId: data.ownerId,
-    ownerEmail: data.ownerEmail,
-    ownerName: data.ownerName,
-    joinedAt: data.joinedAt instanceof Timestamp ? data.joinedAt.toDate() : new Date(),
+    ownerId: team.owner_id as string,
+    ownerEmail: team.owner_email as string,
+    ownerName: team.owner_name as string | null,
+    joinedAt: new Date(data.added_at),
   };
 }
 
 // 이메일로 사용자 찾기
 export async function findUserByEmail(email: string): Promise<{ uid: string; email: string; displayName: string | null; photoURL: string | null } | null> {
-  if (!db) return null;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, display_name, photo_url')
+    .eq('email', email)
+    .single();
 
-  const usersRef = collection(db, 'users');
-  const q = query(usersRef, where('email', '==', email));
-  const querySnap = await getDocs(q);
-
-  if (querySnap.empty) return null;
-
-  const userDoc = querySnap.docs[0];
-  const data = userDoc.data();
+  if (error || !data) return null;
 
   return {
-    uid: userDoc.id,
+    uid: data.id,
     email: data.email,
-    displayName: data.displayName || null,
-    photoURL: data.photoURL || null,
+    displayName: data.display_name || null,
+    photoURL: data.photo_url || null,
   };
 }
 
-// 팀 소유자의 API 설정 가져오기 (팀원이 사용)
+// 팀 소유자의 API 설정 가져오기
 export async function getTeamOwnerApiSettings(ownerId: string): Promise<{ apiProvider: string; apiKey: string } | null> {
-  if (!db) return null;
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('api_provider, api_key')
+    .eq('user_id', ownerId)
+    .single();
 
-  const apiRef = doc(db, 'users', ownerId, 'settings', 'api');
-  const apiSnap = await getDoc(apiRef);
+  if (error || !data) return null;
 
-  if (!apiSnap.exists()) return null;
-
-  const data = apiSnap.data();
   return {
-    apiProvider: data.apiProvider || 'gemini',
-    apiKey: data.apiKey || '',
+    apiProvider: data.api_provider || 'gemini',
+    apiKey: data.api_key || '',
   };
 }
 
-// 팀 탈퇴 (팀원이 직접)
+// 팀 탈퇴
 export async function leaveTeam(userId: string, ownerId: string): Promise<void> {
-  if (!db) throw new Error('Firestore가 초기화되지 않았습니다');
-
-  // 팀에서 멤버 제거
   await removeTeamMember(ownerId, userId);
 }

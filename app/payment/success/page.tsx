@@ -57,7 +57,7 @@ function PaymentSuccessContent() {
         }
 
         // 보안: orderId 일치 확인
-        if (payment.oderId !== orderId) {
+        if (payment.orderId !== orderId) {
           console.error('Order ID mismatch');
           throw new Error('주문 정보가 일치하지 않습니다');
         }

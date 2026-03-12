@@ -1,15 +1,16 @@
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from './firebase';
+import { createSupabaseBrowserClient } from './supabase-client';
+
+const supabase = createSupabaseBrowserClient();
 
 export type ActivityType =
-  | 'login'           // 로그인
-  | 'keyword_search'  // 키워드 검색
-  | 'blog_generate'   // 블로그 생성
-  | 'image_generate'  // 이미지 생성
-  | 'preset_save'     // 프리셋 저장
-  | 'plan_change'     // 요금제 변경
-  | 'payment'         // 결제
-  | 'seo_schedule';   // SEO 스케줄 설정
+  | 'login'
+  | 'keyword_search'
+  | 'blog_generate'
+  | 'image_generate'
+  | 'preset_save'
+  | 'plan_change'
+  | 'payment'
+  | 'seo_schedule';
 
 export interface ActivityRecord {
   type: ActivityType;
@@ -30,7 +31,7 @@ const ACTIVITY_LABELS: Record<ActivityType, string> = {
 };
 
 /**
- * 사용자 활동 기록 저장 (최근 30개 유지)
+ * 사용자 활동 기록 저장
  */
 export async function logActivity(
   userId: string,
@@ -38,31 +39,32 @@ export async function logActivity(
   description: string,
   metadata?: Record<string, string | number>
 ): Promise<void> {
-  if (!db || !userId || userId === 'admin-ccv5') return;
+  if (!userId || userId === 'admin-ccv5') return;
 
   try {
-    const activityRef = doc(db, 'users', userId, 'activity', 'log');
-    const snap = await getDoc(activityRef);
+    await supabase
+      .from('activity_logs')
+      .insert({
+        user_id: userId,
+        type,
+        description,
+        metadata: metadata || {},
+      });
 
-    const newRecord = {
-      type,
-      description,
-      timestamp: Timestamp.fromDate(new Date()),
-      metadata: metadata || {},
-    };
+    // 오래된 기록 정리 (30개 초과 시)
+    const { data: allLogs } = await supabase
+      .from('activity_logs')
+      .select('id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
 
-    let records: any[] = [];
-    if (snap.exists()) {
-      records = snap.data().records || [];
+    if (allLogs && allLogs.length > 30) {
+      const idsToDelete = allLogs.slice(0, allLogs.length - 30).map((l) => l.id);
+      await supabase
+        .from('activity_logs')
+        .delete()
+        .in('id', idsToDelete);
     }
-
-    records.push(newRecord);
-    // 최근 30개만 유지
-    if (records.length > 30) {
-      records = records.slice(-30);
-    }
-
-    await setDoc(activityRef, { records, updatedAt: Timestamp.fromDate(new Date()) });
   } catch (error) {
     console.error('Failed to log activity:', error);
   }
@@ -72,21 +74,24 @@ export async function logActivity(
  * 사용자 활동 기록 조회
  */
 export async function getActivityLog(userId: string): Promise<ActivityRecord[]> {
-  if (!db || !userId) return [];
+  if (!userId) return [];
 
   try {
-    const activityRef = doc(db, 'users', userId, 'activity', 'log');
-    const snap = await getDoc(activityRef);
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(30);
 
-    if (!snap.exists()) return [];
+    if (error || !data) return [];
 
-    const records = snap.data().records || [];
-    return records.map((r: any) => ({
-      type: r.type,
+    return data.map((r) => ({
+      type: r.type as ActivityType,
       description: r.description,
-      timestamp: r.timestamp instanceof Timestamp ? r.timestamp.toDate() : new Date(r.timestamp),
+      timestamp: new Date(r.created_at),
       metadata: r.metadata,
-    })).reverse(); // 최신순
+    }));
   } catch (error) {
     console.error('Failed to get activity log:', error);
     return [];
