@@ -5,21 +5,6 @@ const supabase = createSupabaseBrowserClient();
 const DAILY_LIMIT = 3;
 const ADMIN_USER_ID = 'admin-ccv5';
 
-// 임시 키워드 검색 제한 해제 목록 (만료일 이후 자동 무효)
-const TEMPORARY_LIMIT_OVERRIDES: Record<string, { limit: number; expiresAt: string }> = {
-  'dytpq1019@gmail.com': { limit: 100, expiresAt: '2026-03-15' }, // 이번 주 일요일까지
-};
-
-function getDailyLimit(userId: string, email?: string): number {
-  if (email) {
-    const override = TEMPORARY_LIMIT_OVERRIDES[email];
-    if (override && new Date() <= new Date(override.expiresAt + 'T23:59:59')) {
-      return override.limit;
-    }
-  }
-  return DAILY_LIMIT;
-}
-
 export interface UsageRecord {
   userId: string;
   date: string;
@@ -35,11 +20,11 @@ function getTodayString(): string {
 /**
  * 사용량 확인 및 증가
  */
-export async function checkAndIncrementUsage(userId: string, email?: string): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+export async function checkAndIncrementUsage(userId: string): Promise<{ allowed: boolean; remaining: number; limit: number }> {
   if (userId === ADMIN_USER_ID) return { allowed: true, remaining: 999, limit: 999 };
 
   const today = getTodayString();
-  const limit = getDailyLimit(userId, email);
+  const limit = DAILY_LIMIT;
 
   try {
     const { data: existing } = await supabase
@@ -85,11 +70,11 @@ export async function checkAndIncrementUsage(userId: string, email?: string): Pr
 /**
  * 현재 사용량 조회
  */
-export async function getUsageToday(userId: string, email?: string): Promise<{ count: number; remaining: number; limit: number }> {
+export async function getUsageToday(userId: string): Promise<{ count: number; remaining: number; limit: number }> {
   if (userId === ADMIN_USER_ID) return { count: 0, remaining: 999, limit: 999 };
 
   const today = getTodayString();
-  const limit = getDailyLimit(userId, email);
+  const limit = DAILY_LIMIT;
 
   try {
     const { data } = await supabase

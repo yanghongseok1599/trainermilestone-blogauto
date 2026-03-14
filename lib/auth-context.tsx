@@ -152,15 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 아이디 → 이메일 매핑 (이메일 형식이 아닌 경우)
-  const USERNAME_ALIASES: Record<string, string> = {
-    'vibecoding': 'dytpq1019@gmail.com',
-  };
-
   const signInWithEmail = async (email: string, password: string) => {
-    const resolvedEmail = USERNAME_ALIASES[email.toLowerCase()] || email;
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: resolvedEmail,
+      email,
       password,
     });
 
