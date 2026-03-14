@@ -20,6 +20,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import { validateGeneratedContent } from '@/lib/post-validate';
 import { getMyTeamMembership, getTeamOwnerApiSettings } from '@/lib/team-service';
 import { loadApiSettings, saveApiSettings } from '@/lib/firestore-service';
+import { getWritingStyleProfile } from '@/lib/writing-style-service';
 
 const FEATURES = [
   { name: '333법칙', color: 'bg-[#f72c5b]/10 text-[#f72c5b] border-[#f72c5b]/30' },
@@ -291,7 +292,20 @@ export function StepGenerate() {
     toast.info('블로그 글을 생성하고 있습니다...');
 
     try {
-      const prompt = generate333Prompt(store);
+      // 문체 프로필 로드
+      let writingStyleSummary: string | undefined;
+      if (user) {
+        try {
+          const styleProfile = await getWritingStyleProfile(user.uid);
+          if (styleProfile?.style_summary) {
+            writingStyleSummary = styleProfile.style_summary;
+          }
+        } catch {
+          // 문체 프로필 로드 실패 시 무시
+        }
+      }
+
+      const prompt = generate333Prompt(store, writingStyleSummary);
       const endpoint = store.apiProvider === 'gemini' ? '/api/gemini/generate' : '/api/openai/generate';
 
       // API 키 결정: 개인 키 > 팀 소유자 키

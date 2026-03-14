@@ -793,14 +793,29 @@ ${referenceText.length > maxLen ? '\n(이하 생략...)' : ''}
 // 통합 함수들
 // ============================================================
 
-export function generate333Prompt(state: AppState): string {
+export function generate333Prompt(state: AppState, writingStyleProfile?: string): string {
   const contentState = appStateToContentState(state);
   const basePrompt = generateFBAS2026Prompt(contentState);
   const imageContext = buildImageAnalysisContext(state);
   const referenceContext = buildReferenceTextContext(state.referenceText);
+  const styleContext = writingStyleProfile ? buildWritingStyleContext(writingStyleProfile) : '';
 
-  const parts = [referenceContext, imageContext, basePrompt].filter(Boolean);
+  const parts = [styleContext, referenceContext, imageContext, basePrompt].filter(Boolean);
   return parts.join('\n');
+}
+
+// 사용자 문체 프로필 컨텍스트 생성
+function buildWritingStyleContext(styleSummary: string): string {
+  return `──────────────────────────────────
+【최우선 적용: 글쓴이 고유 문체】
+아래는 실제 글쓴이가 직접 쓴 글에서 AI가 추출한 문체 분석입니다.
+반드시 이 문체와 말투를 따라서 작성하세요. 이것이 가장 중요한 규칙입니다.
+
+${styleSummary}
+
+위 문체를 최우선으로 반영하여, 글쓴이가 직접 쓴 것처럼 자연스럽게 작성하세요.
+──────────────────────────────────
+`;
 }
 
 export function generate333PromptLite(state: AppState): string {
@@ -867,8 +882,8 @@ export function generateTopBlogsLearningContext(learningResult: LearningResult |
   return context;
 }
 
-export function generate333PromptWithLearning(state: AppState): string {
-  const basePrompt = generate333Prompt(state);
+export function generate333PromptWithLearning(state: AppState, writingStyleProfile?: string): string {
+  const basePrompt = generate333Prompt(state, writingStyleProfile);
   const learningContext = generateTopBlogsLearningContext(state.topBlogsLearning);
 
   if (!learningContext) {

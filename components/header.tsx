@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, User, Loader2, FileText, Settings } from 'lucide-react';
+import { LogIn, LogOut, User, Loader2, FileText, Settings, Brain } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getSeoSchedule } from '@/lib/post-service';
 import { POST_TYPE_INFO, PostType, calculateDaysRemaining, calculateNextDue } from '@/types/post';
@@ -108,6 +108,20 @@ export function Header() {
                 곧출시
               </span>
             </div>
+
+            {/* My Writing Style Link - 로그인 사용자만 */}
+            {user && (
+              <Link href="/my-writing">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#6b7280] hover:text-[#f72c5b] hover:bg-[#f72c5b]/10"
+                >
+                  <Brain className="w-4 h-4 mr-1" />
+                  내 글 학습
+                </Button>
+              </Link>
+            )}
 
             {/* Pricing Link */}
             <Link href="/pricing">
