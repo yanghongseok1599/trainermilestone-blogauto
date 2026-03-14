@@ -113,7 +113,8 @@ export async function loadPresets(userId: string): Promise<Preset[]> {
 
   if (error || !data) return [];
 
-  return data.map((p) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data.map((p: any) => ({
     id: p.id,
     name: p.name,
     category: p.category,

@@ -86,7 +86,7 @@ export async function getActivityLog(userId: string): Promise<ActivityRecord[]> 
 
     if (error || !data) return [];
 
-    return data.map((r) => ({
+    return data.map((r: { type: string; description: string; created_at: string; metadata?: Record<string, string | number> }) => ({
       type: r.type as ActivityType,
       description: r.description,
       timestamp: new Date(r.created_at),
