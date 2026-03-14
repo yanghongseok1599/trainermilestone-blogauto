@@ -59,7 +59,7 @@ export async function logActivity(
       .order('created_at', { ascending: true });
 
     if (allLogs && allLogs.length > 30) {
-      const idsToDelete = allLogs.slice(0, allLogs.length - 30).map((l) => l.id);
+      const idsToDelete = allLogs.slice(0, allLogs.length - 30).map((l: { id: string }) => l.id);
       await supabase
         .from('activity_logs')
         .delete()
