@@ -17,6 +17,8 @@ export interface WritingStyleProfile {
   updated_at: string;
 }
 
+export const MAX_WRITING_SAMPLES = 10;
+
 // 글 샘플 저장
 export async function saveWritingSample(
   userId: string,
@@ -24,6 +26,16 @@ export async function saveWritingSample(
   content: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
+    // 등록 개수 제한 체크
+    const { count } = await supabase
+      .from('writing_samples')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (count !== null && count >= MAX_WRITING_SAMPLES) {
+      return { success: false, error: `최대 ${MAX_WRITING_SAMPLES}개까지 등록할 수 있습니다.` };
+    }
+
     const { data, error } = await supabase
       .from('writing_samples')
       .insert({ user_id: userId, title, content })

@@ -6,21 +6,21 @@ export async function POST(request: NextRequest) {
     const authResult = await authenticateRequest(request, { userId: undefined });
     if ('error' in authResult) return authResult.error;
 
-    const { userId, samples } = await request.json();
+    const { userId, samples, apiKey: clientApiKey } = await request.json();
 
     if (!samples || samples.length === 0) {
       return NextResponse.json({ error: '분석할 글이 없습니다' }, { status: 400 });
     }
 
-    // 사이트 Gemini API 키 사용
-    const apiKey = process.env.GEMINI_API_KEY;
+    // 개인 API 키 필수
+    const apiKey = clientApiKey?.trim();
     if (!apiKey) {
-      return NextResponse.json({ error: 'API 키가 설정되지 않았습니다' }, { status: 500 });
+      return NextResponse.json({ error: '문체 분석을 위해 마이페이지에서 API 키를 먼저 등록해주세요' }, { status: 400 });
     }
 
-    // 글 내용 결합 (최대 5개, 각 2000자)
+    // 글 내용 결합 (최대 10개, 각 2000자)
     const combinedText = samples
-      .slice(0, 5)
+      .slice(0, 10)
       .map((s: { title: string; content: string }, i: number) =>
         `[글 ${i + 1}] ${s.title}\n${s.content.slice(0, 2000)}`
       )

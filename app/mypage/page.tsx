@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { getPosts, getPostStats, getSeoSchedule, deletePost } from '@/lib/post-service';
+import { loadApiSettings, saveApiSettings } from '@/lib/firestore-service';
 import { getTeam, addTeamMember, removeTeamMember, getMyTeamMembership, findUserByEmail, leaveTeam, TeamInfo, TeamMember, TeamMembership } from '@/lib/team-service';
 import { SavedPost, PostType, POST_TYPE_INFO, SeoSchedule, SeoAlert, calculateDaysRemaining, calculateNextDue, calculateAlertStatus } from '@/types/post';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,9 @@ import {
   X,
   Zap,
   Crown,
+  Check,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 // 글 유형별 아이콘
@@ -74,6 +78,13 @@ export default function MyPage() {
   const [isRemovingMember, setIsRemovingMember] = useState<string | null>(null);
   const [isLeavingTeam, setIsLeavingTeam] = useState(false);
 
+  // API 키 관련 상태
+  const [apiProvider, setApiProvider] = useState<'gemini' | 'openai'>('gemini');
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
   // 인증 체크
   useEffect(() => {
     if (!authLoading && !user) {
@@ -86,6 +97,16 @@ export default function MyPage() {
     if (user) {
       loadData();
       loadTeamData();
+      // API 키 로드
+      loadApiSettings(user.uid).then((settings) => {
+        if (settings?.apiKey) {
+          setApiKey(settings.apiKey);
+          setApiKeySaved(true);
+        }
+        if (settings?.apiProvider) {
+          setApiProvider(settings.apiProvider as 'gemini' | 'openai');
+        }
+      }).catch(() => {});
     }
   }, [user]);
 
@@ -249,6 +270,33 @@ export default function MyPage() {
     setIsDeleting(false);
   };
 
+  // API 키 저장
+  const handleSaveApiKey = async () => {
+    if (!user || !apiKey.trim()) return;
+    setIsSavingApiKey(true);
+    try {
+      await saveApiSettings(user.uid, apiProvider, apiKey.trim());
+      setApiKeySaved(true);
+      toast.success('API 키가 저장되었습니다');
+    } catch {
+      toast.error('API 키 저장에 실패했습니다');
+    }
+    setIsSavingApiKey(false);
+  };
+
+  // API 키 삭제
+  const handleDeleteApiKey = async () => {
+    if (!user) return;
+    try {
+      await saveApiSettings(user.uid, apiProvider, '');
+      setApiKey('');
+      setApiKeySaved(false);
+      toast.success('API 키가 삭제되었습니다');
+    } catch {
+      toast.error('API 키 삭제에 실패했습니다');
+    }
+  };
+
   // 클립보드 복사
   const handleCopy = async (content: string) => {
     try {
@@ -379,6 +427,97 @@ export default function MyPage() {
                 </Button>
               </Link>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* API 키 설정 */}
+        <Card className="mb-6 border-[#eeeeee]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Key className="w-5 h-5 text-[#f72c5b]" />
+              내 API 키
+            </CardTitle>
+            <CardDescription>
+              블로그 생성, 문체 분석 등 모든 AI 기능에 사용됩니다
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* API Provider 선택 */}
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => { setApiProvider('gemini'); setApiKeySaved(false); }}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                  apiProvider === 'gemini'
+                    ? 'bg-[#111111] text-white'
+                    : 'bg-[#f5f5f5] text-[#6b7280] hover:bg-[#eeeeee]'
+                }`}
+              >
+                Gemini
+              </button>
+              <button
+                onClick={() => { setApiProvider('openai'); setApiKeySaved(false); }}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                  apiProvider === 'openai'
+                    ? 'bg-[#111111] text-white'
+                    : 'bg-[#f5f5f5] text-[#6b7280] hover:bg-[#eeeeee]'
+                }`}
+              >
+                ChatGPT (OpenAI)
+              </button>
+            </div>
+
+            {/* API 키 입력 */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  placeholder={apiProvider === 'gemini' ? 'Gemini API 키를 입력하세요' : 'OpenAI API 키를 입력하세요'}
+                  value={apiKey}
+                  onChange={(e) => {
+                    setApiKey(e.target.value);
+                    setApiKeySaved(false);
+                  }}
+                  className="pr-10 border-[#eeeeee] focus:border-[#f72c5b]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#6b7280]"
+                >
+                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <Button
+                onClick={handleSaveApiKey}
+                disabled={isSavingApiKey || !apiKey.trim() || apiKeySaved}
+                className="bg-[#111111] hover:bg-[#333333]"
+              >
+                {isSavingApiKey ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : apiKeySaved ? (
+                  <>
+                    <Check className="w-4 h-4 mr-1" />
+                    저장됨
+                  </>
+                ) : (
+                  '저장'
+                )}
+              </Button>
+              {apiKeySaved && (
+                <Button
+                  variant="outline"
+                  onClick={handleDeleteApiKey}
+                  className="border-red-200 text-red-500 hover:bg-red-50"
+                >
+                  삭제
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-[#9ca3af] mt-2">
+              {apiProvider === 'gemini'
+                ? 'Google AI Studio (aistudio.google.com)에서 무료로 발급받을 수 있습니다'
+                : 'OpenAI Platform (platform.openai.com)에서 발급받을 수 있습니다 (유료)'}
+            </p>
           </CardContent>
         </Card>
 

@@ -10,6 +10,7 @@ import {
   deleteWritingSample,
   getWritingStyleProfile,
   upsertWritingStyleProfile,
+  MAX_WRITING_SAMPLES,
   WritingSample,
   WritingStyleProfile,
 } from '@/lib/writing-style-service';
@@ -17,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { loadApiSettings } from '@/lib/firestore-service';
 import {
   ArrowLeft,
   Plus,
@@ -26,6 +28,7 @@ import {
   FileText,
   Sparkles,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 
 export default function MyWritingPage() {
@@ -37,6 +40,8 @@ export default function MyWritingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const [userApiKey, setUserApiKey] = useState('');
 
   // 입력 폼
   const [title, setTitle] = useState('');
@@ -52,6 +57,10 @@ export default function MyWritingPage() {
   useEffect(() => {
     if (user) {
       loadData();
+      // 개인 API 키 로드
+      loadApiSettings(user.uid).then((settings) => {
+        if (settings?.apiKey) setUserApiKey(settings.apiKey);
+      }).catch(() => {});
     }
   }, [user]);
 
@@ -144,6 +153,7 @@ export default function MyWritingPage() {
         body: JSON.stringify({
           userId: user.uid,
           samples: currentSamples.map((s) => ({ title: s.title, content: s.content })),
+          apiKey: userApiKey,
         }),
       });
 
@@ -247,6 +257,23 @@ export default function MyWritingPage() {
         </CardContent>
       </Card>
 
+      {/* API 키 미등록 안내 */}
+      {!userApiKey && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">API 키가 필요합니다</p>
+            <p className="text-xs text-amber-600 mt-1">
+              문체 분석을 위해{' '}
+              <Link href="/mypage" className="underline font-medium">
+                마이페이지
+              </Link>
+              에서 Gemini API 키를 먼저 등록해주세요.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 글 등록 폼 */}
       <Card className="mb-6 border-[#eeeeee]">
         <CardHeader className="pb-3">
@@ -255,7 +282,7 @@ export default function MyWritingPage() {
             <CardTitle className="text-lg">글 등록하기</CardTitle>
           </div>
           <CardDescription>
-            내가 직접 쓴 블로그 글을 붙여넣기 해주세요 (최소 200자)
+            내가 직접 쓴 블로그 글을 붙여넣기 해주세요 (최소 200자, 최대 {MAX_WRITING_SAMPLES}개)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -279,7 +306,7 @@ export default function MyWritingPage() {
             </span>
             <Button
               onClick={handleSave}
-              disabled={isSaving || !title.trim() || content.trim().length < 200}
+              disabled={isSaving || !title.trim() || content.trim().length < 200 || samples.length >= MAX_WRITING_SAMPLES}
               className="bg-[#f72c5b] hover:bg-[#e0264f] text-white"
             >
               {isSaving ? (
@@ -298,7 +325,7 @@ export default function MyWritingPage() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-[#f72c5b]" />
-            <CardTitle className="text-lg">등록된 글 ({samples.length}개)</CardTitle>
+            <CardTitle className="text-lg">등록된 글 ({samples.length}/{MAX_WRITING_SAMPLES}개)</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
