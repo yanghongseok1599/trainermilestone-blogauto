@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createSupabaseBrowserClient } from './supabase-client';
 import { logActivity } from './activity-log';
-import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import type { User as SupabaseUser, Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 const ADMIN_SESSION_KEY = 'blogbooster_admin_session';
 
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 인증 상태 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (_event: AuthChangeEvent, session: Session | null) => {
         setSession(session);
         if (session?.user) {
           await checkAndSetUser(session.user);
@@ -102,24 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkAndSetUser = async (authUser: SupabaseUser) => {
-    try {
-      // 차단된 사용자 체크
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_blocked')
-        .eq('id', authUser.id)
-        .single();
-
-      if (profile?.is_blocked) {
-        await supabase.auth.signOut();
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // 프로필 테이블 없거나 체크 실패 시 통과 허용
-    }
-
     // admin 체크
     if (authUser.app_metadata?.role === 'admin') {
       setIsSuperAdmin(true);
