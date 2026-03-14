@@ -78,11 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        checkAndSetUser(session.user);
+        checkAndSetUser(session.user).catch(() => setLoading(false));
       } else {
         setLoading(false);
       }
-    });
+    }).catch(() => setLoading(false));
 
     // 인증 상태 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -102,8 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkAndSetUser = async (authUser: SupabaseUser) => {
-    // 차단된 사용자 체크
     try {
+      // 차단된 사용자 체크
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_blocked')
@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
     } catch {
-      // 프로필 체크 실패 시 통과 허용
+      // 프로필 테이블 없거나 체크 실패 시 통과 허용
     }
 
     // admin 체크
