@@ -6,17 +6,10 @@ export async function POST(request: NextRequest) {
   try {
     const { mainKeyword, category, businessName, imageContext, imageAnalysis, apiKey: clientApiKey } = await request.json();
 
-    const useSiteApi = !clientApiKey;
-    const apiKey = clientApiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'OPENAI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
+    if (!clientApiKey?.trim()) {
+      return NextResponse.json({ error: 'API 키가 필요합니다. 마이페이지에서 API 키를 등록해주세요.' }, { status: 400 });
     }
-
-    // 사이트 API 사용 시 인증
-    if (useSiteApi) {
-      const authResult = await authenticateRequest(request, { userId: undefined });
-      if ('error' in authResult) return authResult.error;
-    }
+    const apiKey = clientApiKey.trim();
 
     if (!mainKeyword) {
       return NextResponse.json({ error: '메인 키워드가 필요합니다' }, { status: 400 });

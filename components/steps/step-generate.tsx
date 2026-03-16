@@ -212,6 +212,14 @@ export function StepGenerate() {
         } catch { /* ignore */ }
       }
 
+      if (!resolvedApiKey) {
+        toast.error('API 키가 필요합니다. 마이페이지에서 API 키를 등록해주세요.', {
+          action: { label: '마이페이지 이동', onClick: () => window.location.href = '/mypage' },
+          duration: 6000,
+        });
+        return;
+      }
+
       const authHeaders = await getAuthHeaders();
       const kwEndpoint = store.apiProvider === 'gemini' ? '/api/gemini/keywords' : '/api/openai/keywords';
       const categoryName = store.category === '기타' && store.customCategoryName ? store.customCategoryName : store.category;
@@ -322,6 +330,15 @@ export function StepGenerate() {
         } catch (teamError) {
           console.error('Team API key fetch failed:', teamError);
         }
+      }
+
+      if (!resolvedApiKey) {
+        toast.error('API 키가 필요합니다. 마이페이지에서 API 키를 등록해주세요.', {
+          action: { label: '마이페이지 이동', onClick: () => window.location.href = '/mypage' },
+          duration: 6000,
+        });
+        setIsGenerating(false);
+        return;
       }
 
       // RAG 컨텍스트 생성 (로그인 사용자만)

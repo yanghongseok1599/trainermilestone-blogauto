@@ -51,34 +51,13 @@ export async function POST(request: NextRequest) {
   try {
     const { prompt, images, ragContext, liteMode, optimizedMode, apiKey: clientApiKey } = await request.json();
 
-    const useSiteApi = !clientApiKey;
-    const siteApiKeys = [
-      process.env.GEMINI_API_KEY,
-      process.env.GEMINI_API_KEY_2,
-      process.env.GEMINI_API_KEY_3,
-    ].filter((k): k is string => !!k?.trim()).map(k => k.trim());
-    const apiKeys = clientApiKey ? [clientApiKey.trim()] : siteApiKeys;
-    if (apiKeys.length === 0) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY 환경변수가 설정되지 않았습니다' }, { status: 400 });
+    if (!clientApiKey?.trim()) {
+      return NextResponse.json({ error: 'API 키가 필요합니다. 마이페이지에서 API 키를 등록해주세요.' }, { status: 400 });
     }
+    const apiKeys = [clientApiKey.trim()];
 
     if (!prompt) {
       return NextResponse.json({ error: '프롬프트가 필요합니다' }, { status: 400 });
-    }
-
-    // 사이트 API 사용 시 인증 + 토큰 한도 사전 체크
-    let authenticatedUserId: string | null = null;
-    if (useSiteApi) {
-      const authResult = await authenticateRequest(request, { userId: undefined });
-      if ('error' in authResult) return authResult.error;
-      authenticatedUserId = authResult.userId;
-
-      // 예상 토큰(프롬프트 길이 기반) 사전 체크 - 실제 사용량은 응답 후 기록
-      const estimatedInputTokens = Math.ceil(prompt.length / 2);
-      const preCheck = await checkAndIncrementTokenUsageServer(authenticatedUserId, 0);
-      if (!preCheck.allowed) {
-        return NextResponse.json({ error: preCheck.reason }, { status: 429 });
-      }
     }
 
     // 토큰 절약 모드 결정 (liteMode > optimizedMode > 일반)
@@ -170,11 +149,6 @@ ${prompt}`;
         const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         if (rawText) {
           console.log(`Success with key ${i + 1}/${apiKeys.length}`);
-
-          if (useSiteApi && authenticatedUserId) {
-            const estimatedTokens = Math.ceil((prompt.length + rawText.length) / 2);
-            await checkAndIncrementTokenUsageServer(authenticatedUserId, estimatedTokens);
-          }
 
           const cleanedText = cleanMarkdownAndForbiddenPatterns(rawText);
           return NextResponse.json({ content: cleanedText });
