@@ -822,56 +822,43 @@ export function StepGenerate() {
             </button>
           </div>
 
-          {/* 내 API 키 설정 */}
-          <div className="mt-3 p-3 rounded-xl bg-[#f9fafb] border border-[#eeeeee]">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-[#6b7280]">
-                내 API 키 (선택사항)
-              </p>
-              {store.userApiKey && (
-                <span className="text-xs text-[#03C75A] flex items-center gap-1">
-                  <Check className="w-3 h-3" /> 키 저장됨
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder={store.apiProvider === 'gemini' ? 'Gemini API 키 입력' : 'OpenAI API 키 입력'}
-                value={store.userApiKey}
-                onChange={(e) => store.setUserApiKey(e.target.value)}
-                onBlur={async () => {
-                  if (store.userApiKey.trim() && user) {
-                    try {
-                      await saveApiSettings(user.uid, store.apiProvider, store.userApiKey.trim());
-                      toast.success('API 키가 저장되었습니다');
-                    } catch { /* ignore */ }
-                  }
-                }}
-                className="flex-1 h-9 text-sm bg-white border-[#eeeeee] focus:border-[#f72c5b]"
-              />
-              {store.userApiKey && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 text-xs text-[#9ca3af] hover:text-red-500"
-                  onClick={async () => {
-                    store.setUserApiKey('');
-                    if (user) {
-                      try {
-                        await saveApiSettings(user.uid, store.apiProvider, '');
-                      } catch { /* ignore */ }
-                    }
-                    toast.success('API 키가 삭제되었습니다');
-                  }}
+          {/* API 키 연동 상태 */}
+          <div className="mt-3">
+            {store.userApiKey ? (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[#f0fdf4] border border-[#86efac]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-[#22c55e] flex items-center justify-center flex-shrink-0">
+                    <Check className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-[#15803d]">API 키 연동됨</p>
+                    <p className="text-[10px] text-[#16a34a]">마이페이지에서 저장한 키가 자동 적용됩니다</p>
+                  </div>
+                </div>
+                <a
+                  href="/mypage"
+                  className="text-[10px] text-[#16a34a] underline hover:text-[#15803d] whitespace-nowrap"
                 >
-                  삭제
-                </Button>
-              )}
-            </div>
-            <p className="text-[10px] text-[#9ca3af] mt-1.5">
-              내 API 키를 입력하면 사이트 한도 제한 없이 무제한 사용 가능합니다
-            </p>
+                  변경
+                </a>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[#fff7ed] border border-[#fed7aa]">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#ea580c] flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-[#9a3412]">API 키 미등록</p>
+                    <p className="text-[10px] text-[#c2410c]">글 생성을 위해 API 키가 필요합니다</p>
+                  </div>
+                </div>
+                <a
+                  href="/mypage"
+                  className="text-[10px] font-medium text-white bg-[#ea580c] px-2.5 py-1.5 rounded-lg hover:bg-[#c2410c] whitespace-nowrap"
+                >
+                  등록하기
+                </a>
+              </div>
+            )}
           </div>
         </div>
 

@@ -16,7 +16,7 @@ import { AuthGuard } from '@/components/auth-guard';
 import { useAuth } from '@/lib/auth-context';
 import { getUserSubscription } from '@/lib/payment-service';
 import { PLANS, type UserSubscription } from '@/types/payment';
-import { saveApiSettings } from '@/lib/firestore-service';
+import { saveApiSettings, loadApiSettings } from '@/lib/firestore-service';
 
 type ApiProvider = 'openai' | 'gemini';
 type ApiKeyMode = 'own' | 'site'; // 자기 키 vs 사이트 키
@@ -53,6 +53,7 @@ function ImageGeneratorContent() {
   const [parsedImages, setParsedImages] = useState<ImageWithGeneration[]>([]);
   const [apiKey, setApiKey] = useState('');
   const [apiKeyMode, setApiKeyMode] = useState<ApiKeyMode>('site');
+  const [isKeyFromMypage, setIsKeyFromMypage] = useState(false);
   const [apiProvider, setApiProvider] = useState<ApiProvider>('openai');
   const [selectedModel, setSelectedModel] = useState('gpt-image-1');
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
@@ -106,6 +107,28 @@ function ImageGeneratorContent() {
       setSelectedModel(storeApiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image');
     }
   }, [storeApiProvider]);
+
+  // 마이페이지 저장 API 키 자동 로드
+  useEffect(() => {
+    const loadSavedKey = async () => {
+      if (user) {
+        try {
+          const settings = await loadApiSettings(user.uid);
+          if (settings?.apiKey) {
+            setApiKey(settings.apiKey);
+            setUserApiKey(settings.apiKey);
+            setApiKeyMode('own');
+            setIsKeyFromMypage(true);
+            if (settings.apiProvider === 'openai' || settings.apiProvider === 'gemini') {
+              setApiProvider(settings.apiProvider as ApiProvider);
+              setSelectedModel(settings.apiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image');
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    };
+    loadSavedKey();
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 블로그 본문에서 연동된 이미지 프롬프트가 있으면 자동 로드
   useEffect(() => {
@@ -365,6 +388,33 @@ function ImageGeneratorContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 마이페이지 연동 상태 */}
+            {isKeyFromMypage ? (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[#f0fdf4] border border-[#86efac]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-[#22c55e] flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#15803d]">API 키 연동됨</p>
+                    <p className="text-xs text-[#16a34a]">마이페이지에서 저장한 {apiProvider === 'openai' ? 'OpenAI' : 'Gemini'} 키가 자동 적용됩니다</p>
+                  </div>
+                </div>
+                <a href="/mypage" className="text-xs text-[#16a34a] underline hover:text-[#15803d]">변경</a>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[#fff7ed] border border-[#fed7aa]">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-[#ea580c] flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-[#9a3412]">API 키 미등록</p>
+                    <p className="text-xs text-[#c2410c]">마이페이지에서 API 키를 등록하면 자동으로 연동됩니다</p>
+                  </div>
+                </div>
+                <a href="/mypage" className="text-xs font-medium text-white bg-[#ea580c] px-2.5 py-1.5 rounded-lg hover:bg-[#c2410c]">등록하기</a>
+              </div>
+            )}
+
             {/* API Key Mode Selection */}
             <div className="flex items-center gap-4 flex-wrap">
               <label className="text-sm font-medium text-[#111111] whitespace-nowrap">
