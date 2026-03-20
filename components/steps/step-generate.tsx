@@ -213,6 +213,7 @@ export function StepGenerate() {
       }
 
       if (!resolvedApiKey) {
+        setIsGeneratingKeywords(false);
         toast.error('API 키가 필요합니다. 마이페이지에서 API 키를 등록해주세요.', {
           action: { label: '마이페이지 이동', onClick: () => window.location.href = '/mypage' },
           duration: 6000,
@@ -280,9 +281,10 @@ export function StepGenerate() {
       }
     } catch (err) {
       console.error('키워드 생성 실패:', err);
+      toast.error('키워드 자동 생성 실패. 아래에서 직접 입력하거나 재시도 버튼을 눌러주세요.');
+    } finally {
+      setIsGeneratingKeywords(false);
     }
-    setIsGeneratingKeywords(false);
-    toast.error('키워드 자동 생성 실패. 아래에서 직접 입력하거나 재시도 버튼을 눌러주세요.');
   }, [store, user, getAuthHeaders]);
 
   // step 2 진입 시 키워드가 비어있으면 자동 생성
