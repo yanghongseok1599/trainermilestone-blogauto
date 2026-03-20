@@ -144,32 +144,39 @@ export async function deletePreset(userId: string, presetId: string): Promise<vo
   if (error) throw new Error(`프리셋 삭제 실패: ${error.message}`);
 }
 
-// Save API settings
+// Save API settings - saves to provider-specific column
 export async function saveApiSettings(userId: string, apiProvider: string, apiKey: string): Promise<void> {
+  const column = apiProvider === 'openai' ? 'openai_api_key' : 'gemini_api_key';
   const { error } = await supabase
     .from('user_settings')
     .upsert({
       user_id: userId,
       api_provider: apiProvider,
       api_key: apiKey,
+      [column]: apiKey,
     }, { onConflict: 'user_id' });
 
   if (error) throw new Error(`API 설정 저장 실패: ${error.message}`);
 }
 
-// Load API settings
-export async function loadApiSettings(userId: string): Promise<{ apiProvider: string; apiKey: string } | null> {
+// Load API settings - returns both Gemini and OpenAI keys
+export async function loadApiSettings(userId: string): Promise<{ apiProvider: string; apiKey: string; geminiApiKey: string; openaiApiKey: string } | null> {
   const { data, error } = await supabase
     .from('user_settings')
-    .select('api_provider, api_key')
+    .select('api_provider, api_key, gemini_api_key, openai_api_key')
     .eq('user_id', userId)
     .single();
 
   if (error || !data) return null;
 
+  const geminiApiKey = data.gemini_api_key || (data.api_provider === 'gemini' ? data.api_key : '') || '';
+  const openaiApiKey = data.openai_api_key || (data.api_provider === 'openai' ? data.api_key : '') || '';
+
   return {
     apiProvider: data.api_provider || 'gemini',
     apiKey: data.api_key || '',
+    geminiApiKey,
+    openaiApiKey,
   };
 }
 

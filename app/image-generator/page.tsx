@@ -114,14 +114,22 @@ function ImageGeneratorContent() {
       if (user) {
         try {
           const settings = await loadApiSettings(user.uid);
-          if (settings?.apiKey) {
-            setApiKey(settings.apiKey);
-            setUserApiKey(settings.apiKey);
-            setApiKeyMode('own');
-            setIsKeyFromMypage(true);
-            if (settings.apiProvider === 'openai' || settings.apiProvider === 'gemini') {
-              setApiProvider(settings.apiProvider as ApiProvider);
-              setSelectedModel(settings.apiProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image');
+          if (settings) {
+            // 현재 선택된 provider의 키 우선, 없으면 다른 provider 키 사용
+            const preferredKey = apiProvider === 'openai' ? settings.openaiApiKey : settings.geminiApiKey;
+            const fallbackKey = apiProvider === 'openai' ? settings.geminiApiKey : settings.openaiApiKey;
+            const keyToUse = preferredKey || fallbackKey;
+            if (keyToUse) {
+              if (!preferredKey && fallbackKey) {
+                // 다른 provider 키만 있으면 해당 provider로 전환
+                const fallbackProvider = apiProvider === 'openai' ? 'gemini' : 'openai';
+                setApiProvider(fallbackProvider);
+                setSelectedModel(fallbackProvider === 'openai' ? 'gpt-image-1' : 'gemini-2.5-flash-image');
+              }
+              setApiKey(keyToUse);
+              setUserApiKey(keyToUse);
+              setApiKeyMode('own');
+              setIsKeyFromMypage(true);
             }
           }
         } catch { /* ignore */ }
@@ -485,10 +493,14 @@ function ImageGeneratorContent() {
                 <Button
                   variant={apiProvider === 'openai' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
                     setApiProvider('openai');
                     setSelectedModel('gpt-image-1');
-                    if (apiKeyMode === 'own') setApiKey('');
+                    if (user) {
+                      const s = await loadApiSettings(user.uid).catch(() => null);
+                      if (s?.openaiApiKey) { setApiKey(s.openaiApiKey); setApiKeyMode('own'); setIsKeyFromMypage(true); }
+                      else { setApiKey(''); setIsKeyFromMypage(false); }
+                    }
                   }}
                   className={apiProvider === 'openai'
                     ? 'bg-[#03C75A] hover:bg-[#059669] text-white'
@@ -500,10 +512,14 @@ function ImageGeneratorContent() {
                 <Button
                   variant={apiProvider === 'gemini' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
                     setApiProvider('gemini');
                     setSelectedModel('gemini-2.5-flash-image');
-                    if (apiKeyMode === 'own') setApiKey('');
+                    if (user) {
+                      const s = await loadApiSettings(user.uid).catch(() => null);
+                      if (s?.geminiApiKey) { setApiKey(s.geminiApiKey); setApiKeyMode('own'); setIsKeyFromMypage(true); }
+                      else { setApiKey(''); setIsKeyFromMypage(false); }
+                    }
                   }}
                   className={apiProvider === 'gemini'
                     ? 'bg-[#111111] hover:bg-[#3367d6] text-white'

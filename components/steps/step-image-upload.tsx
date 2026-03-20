@@ -64,20 +64,21 @@ export function StepImageUpload() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
 
-  // Firestore에서 저장된 API 키 로드
+  // 마이페이지 저장 API 키 로드 - provider에 맞는 키 자동 적용
   useEffect(() => {
     const loadKey = async () => {
-      if (user && !userApiKey) {
+      if (user) {
         try {
           const settings = await loadApiSettings(user.uid);
-          if (settings?.apiKey) {
-            setUserApiKey(settings.apiKey);
+          if (settings) {
+            const key = apiProvider === 'openai' ? settings.openaiApiKey : settings.geminiApiKey;
+            if (key) setUserApiKey(key);
           }
         } catch { /* ignore */ }
       }
     };
     loadKey();
-  }, [user, userApiKey, setUserApiKey]);
+  }, [user, apiProvider]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 참고 글 저장 (onBlur)
   const handleReferenceTextBlur = useCallback(async () => {

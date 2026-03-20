@@ -174,20 +174,22 @@ export function StepGenerate() {
   const [showQuotaError, setShowQuotaError] = useState(false);
   const keywordGenRef = useRef(false);
 
-  // Firestore에서 저장된 API 키 로드
+  // 마이페이지 저장 API 키 로드 - provider 변경 시 해당 키로 자동 교체
   useEffect(() => {
     const loadKey = async () => {
-      if (user && !store.userApiKey) {
+      if (user) {
         try {
           const settings = await loadApiSettings(user.uid);
-          if (settings?.apiKey) {
-            store.setUserApiKey(settings.apiKey);
+          if (settings) {
+            const key = store.apiProvider === 'openai' ? settings.openaiApiKey : settings.geminiApiKey;
+            if (key) store.setUserApiKey(key);
+            else store.setUserApiKey('');
           }
         } catch { /* ignore */ }
       }
     };
     loadKey();
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, store.apiProvider]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 페르소나 & 타겟 추천
   const personaTargetRec = useMemo(() => {
