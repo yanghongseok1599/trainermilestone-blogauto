@@ -93,17 +93,21 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
 
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (!text) {
-            lastError = '응답이 비어있습니다';
+            const finishReason = data.candidates?.[0]?.finishReason;
+            lastError = `응답이 비어있습니다 (finishReason: ${finishReason})`;
+            console.error('Empty text, full candidate:', JSON.stringify(data.candidates?.[0]).slice(0, 500));
             break;
           }
 
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/(\{[\s\S]*\})/);
           if (!jsonMatch) {
             lastError = 'JSON 파싱 실패';
+            console.error('JSON parse failed, actual text:', text.slice(0, 500));
             break;
           }
+          const jsonStr = jsonMatch[1] || jsonMatch[0];
 
-          const result = JSON.parse(jsonMatch[0]);
+          const result = JSON.parse(jsonStr);
           console.log(`Keywords success with ${model} key ${i + 1}`);
           return NextResponse.json({
             subKeywords: result.subKeywords || [],
