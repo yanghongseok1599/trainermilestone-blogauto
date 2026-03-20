@@ -47,7 +47,7 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
 
     // 키워드 생성은 간단한 텍스트 작업 → 가벼운 모델 우선 사용 (별도 RPM 한도)
     // 이미지 분석(gemini-2.5-flash) 직후에도 429 안 걸림
-    const models = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+    const models = ['gemini-2.0-flash', 'gemini-2.5-flash'];
     let lastError = '';
 
     for (const model of models) {
@@ -64,6 +64,7 @@ ${hasExtraContext ? `4. 매우 중요: "글 작성 의도/기획"이나 "이미�
                 generationConfig: {
                   temperature: 0.9,
                   maxOutputTokens: 1024,
+                  responseMimeType: 'application/json',
                 },
               }),
             }
