@@ -49,7 +49,7 @@ export function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center mr-2">
             <Image
-              src="/제목을 입력해주세요. (16).png"
+              src="/logo.png"
               alt="트레이너 마일스톤 블로그 부스터"
               width={140}
               height={40}
