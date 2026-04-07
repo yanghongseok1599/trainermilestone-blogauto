@@ -43,6 +43,7 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signInAsAdmin: (username: string, password: string) => boolean;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -198,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: {
           full_name: name,
         },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -208,8 +210,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(error.message || '회원가입에 실패했습니다.');
     }
 
-    if (data.user) {
+    // 이메일 확인이 필요한 경우 (세션이 없으면 확인 대기 상태)
+    if (data.user && !data.session) {
+      throw new Error('EMAIL_CONFIRMATION_REQUIRED');
+    }
+
+    if (data.user && data.session) {
       await updateLoginHistory(data.user.id);
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+    if (error) {
+      throw new Error(error.message || '비밀번호 재설정 이메일 발송에 실패했습니다.');
     }
   };
 
@@ -257,6 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithEmail,
         signInAsAdmin,
         signUpWithEmail,
+        resetPassword,
         logout,
       }}
     >

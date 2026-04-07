@@ -12,11 +12,12 @@ import { Loader2, Lock, ArrowLeft, User } from 'lucide-react';
 
 function LoginContent() {
   const router = useRouter();
-  const { user, loading, signInWithGoogle, signInWithEmail, signInAsAdmin } = useAuth();
+  const { user, loading, signInWithGoogle, signInWithEmail, signInAsAdmin, resetPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isResetLoading, setIsResetLoading] = useState(false);
 
   // 이미 로그인된 상태면 대시보드로 이동 (redirect 복귀 시)
   useEffect(() => {
@@ -49,12 +50,10 @@ function LoginContent() {
       router.push('/dashboard');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : '로그인 실패';
-      if (errorMessage.includes('user-not-found')) {
-        toast.error('등록되지 않은 계정입니다');
-      } else if (errorMessage.includes('wrong-password')) {
-        toast.error('비밀번호가 올바르지 않습니다');
-      } else if (errorMessage.includes('invalid-email')) {
-        toast.error('유효하지 않은 이메일 형식입니다');
+      if (errorMessage.includes('이메일 또는 비밀번호가')) {
+        toast.error('이메일 또는 비밀번호가 올바르지 않습니다');
+      } else if (errorMessage.includes('Email not confirmed')) {
+        toast.error('이메일 인증이 완료되지 않았습니다. 받은편지함을 확인해주세요.', { duration: 8000 });
       } else {
         toast.error('로그인 실패: ' + errorMessage);
       }
@@ -89,6 +88,22 @@ function LoginContent() {
       }
     }
     setIsGoogleLoading(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error('비밀번호를 재설정할 이메일을 입력해주세요');
+      return;
+    }
+    setIsResetLoading(true);
+    try {
+      await resetPassword(email);
+      toast.success('비밀번호 재설정 이메일을 발송했습니다. 이메일을 확인해주세요!', { duration: 8000 });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '비밀번호 재설정 실패';
+      toast.error(errorMessage);
+    }
+    setIsResetLoading(false);
   };
 
   return (
@@ -193,6 +208,16 @@ function LoginContent() {
               로그인
             </Button>
           </form>
+
+          <div className="text-center">
+            <button
+              onClick={handleResetPassword}
+              disabled={isResetLoading}
+              className="text-sm text-[#6b7280] hover:text-[#f72c5b] hover:underline transition-colors"
+            >
+              {isResetLoading ? '발송 중...' : '비밀번호를 잊으셨나요?'}
+            </button>
+          </div>
 
           {/* Sign Up Link */}
           <p className="text-center text-sm text-[#6b7280]">

@@ -44,12 +44,15 @@ export default function SignupPage() {
       router.push('/dashboard');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : '회원가입 실패';
-      if (errorMessage.includes('email-already-in-use')) {
+      if (errorMessage === 'EMAIL_CONFIRMATION_REQUIRED') {
+        toast.success('인증 이메일을 발송했습니다. 이메일을 확인해주세요!', { duration: 8000 });
+        router.push('/login');
+      } else if (errorMessage.includes('이미 가입된')) {
         toast.error('이미 사용 중인 이메일입니다');
-      } else if (errorMessage.includes('invalid-email')) {
+      } else if (errorMessage.includes('valid email')) {
         toast.error('유효하지 않은 이메일 형식입니다');
-      } else if (errorMessage.includes('weak-password')) {
-        toast.error('비밀번호가 너무 약합니다');
+      } else if (errorMessage.includes('at least')) {
+        toast.error('비밀번호가 너무 약합니다 (최소 6자)');
       } else {
         toast.error('회원가입 실패: ' + errorMessage);
       }
