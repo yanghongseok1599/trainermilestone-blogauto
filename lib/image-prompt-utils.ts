@@ -263,6 +263,29 @@ export function parseImagePrompts(content: string, category: string = ''): Parse
   const matches: ParsedImagePrompt[] = [];
   let index = 0;
 
+  // 형식 0: JSON {"prompt": "...", "negative_prompt": "..."} 패턴
+  const jsonPromptRegex = /\{\s*"prompt"\s*:\s*"([^"]+)"(?:\s*,\s*"negative_prompt"\s*:\s*"([^"]*)")?\s*\}/g;
+  let jsonMatch;
+
+  while ((jsonMatch = jsonPromptRegex.exec(content)) !== null) {
+    const promptText = jsonMatch[1].trim();
+    // negative_prompt는 별도로 추출하되, 프롬프트에는 positive prompt만 사용
+    // (Gemini/OpenAI API는 negative_prompt 파라미터를 직접 지원하지 않음)
+    const english = promptText;
+    // 프롬프트 앞부분을 한글 설명으로 요약
+    const koreanDesc = promptText.length > 60 ? promptText.substring(0, 60) + '...' : promptText;
+    matches.push({
+      id: `img-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      korean: koreanDesc,
+      english,
+      index: index++,
+    });
+  }
+
+  if (matches.length > 0) {
+    return matches;
+  }
+
   // 형식 1: [이미지: 한글설명] 패턴
   const koreanRegex = /\[이미지:\s*([^\]]+)\]/g;
   let koreanMatch;
